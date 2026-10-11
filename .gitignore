@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+*.pdb
+*.zip
+__pycache__/
