@@ -1,5 +1,18 @@
 # Changes
 
+## v1.0.6 — Maintenance update
+
+Bundle: Timeline helper 1.0.6 + Advanced mode helper 1.0.3.
+
+- Separate plugin lifecycle, native access, input, layout and editing helpers into focused source files.
+- Expand dense statements and control flow into consistent, readable C# blocks.
+- Place guarded regression code under each plugin's Diagnostics folder and add a source guide and formatting conventions.
+- Give the internal Advanced reflection helper a descriptive name; public entry points and saved data identities are unchanged.
+- Keep the resize-handle fix, screen-edge placement, shortcuts, group editing, templates and expressions unchanged.
+- Build release DLLs without debug symbols or local PDB paths.
+- Recheck ShalltyUtils 1.3.1 and 1.3.2, native scene save/reload and playback without LifeHacks.
+
+
 ## v1.0.5 — Resize-safe Timeline tools and ShalltyUtils 1.3.2 verification
 
 Bundle: Timeline helper 1.0.5 + unchanged Advanced mode helper 1.0.2.

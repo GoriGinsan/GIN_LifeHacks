@@ -1,6 +1,35 @@
 # Verification
 
-## v1.0.5, checked 2026-10-29
+## v1.0.6, checked 2026-10-29
+
+Timeline helper 1.0.6 + Advanced helper 1.0.3, built for Koikatsu CharaStudio / Unity 5.6.2f1 / BepInEx 5.4.23.2 / Timeline 1.5.6 / KKPE 2.21.5.
+
+This maintenance update reorganizes source without changing editing features. A syntax-member comparison confirmed all 489 member definitions were preserved through file separation, apart from the internal reflection-helper name and version log messages. Plugin GUIDs, configuration keys, native callback names and expression/template XML identities are retained. Release builds omit debug symbols; the resulting 389 Timeline and 344 Advanced method/field records matched the tested builds, after normalizing the compiler's per-build private-data identifier.
+
+| Check | Result |
+| --- | --- |
+| ShalltyUtils 1.3.1 | Functional and rendered layout regression suites passed |
+| ShalltyUtils 1.3.2 | Functional and rendered layout regression suites passed |
+| Resize handle | Native drag events and raycasts passed while shrinking/widening; tools retreat below the window and return above when space is available |
+| Screen/layout cases | Widths 615 through 1100, 80/100/125% canvas scale, top/right/bottom edges, candidate OFF/ON and 120-frame stability passed |
+| Timeline editing | Insertion, text guards, S/current values, alternating keys, groups, Performance Mode ON/OFF, mixed drag, collisions, ordering and Enabled OFF/ON passed |
+| Advanced editing | Native L/R, display-template disk round trips, expressions with 154 morphs / 6 bones, native KKPE XML and rendered thumbnails passed |
+| Scene compatibility | Native PNG save, process restart and reload/playback with both LifeHacks DLLs absent passed |
+
+The scene test saved using ShalltyUtils 1.3.2 and reloaded with ShalltyUtils 1.3.1. It checked exact native Timeline XML, KKPE morph/bone data, runtime transforms, camera seeking and continuous playback. Neither LifeHacks GUID was an ExtendedSave provider.
+
+| Runtime DLL | Plugin version | SHA256 |
+| --- | --- | --- |
+| GIN Timeline life hack.dll | 1.0.6 | `D50317C3232C782F7CD7FE86D46CB167935FFE40A0084D71D5AE99C4EE41F4EF` |
+| GIN Advance mode life hack.dll | 1.0.3 | `48DE9D4E5AF194347A264206D4917F300E4B5F59667BC7D4F790ABC269DDA6E1` |
+
+Installation ZIPs were checked for an exact runtime-only file list and equality to these DLLs. No game assemblies, third-party plugins, test drivers, presets or config files are included.
+
+Limits: this is KK verification, not KKS or all third-party combinations. Native calls and Unity pointer events cover the regression suite; exhaustive physical keyboard/mouse delivery, dense production scenes and long editing sessions are untested. Graphical test runs had no LifeHacks exceptions. A test-only driver can initialize the existing native input module during hidden, unfocused launches. Native shutdown may report Unity JobTempAlloc warnings.
+
+---
+
+## Historical v1.0.5 verification, checked 2026-10-29
 
 Koikatsu CharaStudio / Unity 5.6.2f1 / BepInEx 5.4.23.2 / Timeline 1.5.6 / KKPE 2.21.5. The Advanced helper remains the original 1.0.2 binary.
 
