@@ -15,11 +15,11 @@ using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;
 using Object = System.Object;
 
-[assembly: AssemblyVersion("1.0.3.0")]
-[assembly: AssemblyFileVersion("1.0.3.0")]
+[assembly: AssemblyVersion("1.0.5.0")]
+[assembly: AssemblyFileVersion("1.0.5.0")]
 namespace GinTimelineHack
 {
-    [BepInPlugin(Guid, "GIN Timeline life hack", "1.0.3")]
+    [BepInPlugin(Guid, "GIN Timeline life hack", "1.0.5")]
     [BepInProcess("CharaStudio.exe")]
     [BepInDependency("com.joan6694.illusionplugins.timeline", BepInDependency.DependencyFlags.HardDependency)]
     public sealed partial class Plugin : BaseUnityPlugin
@@ -35,7 +35,7 @@ namespace GinTimelineHack
         internal Native native;
         internal Canvas canvas;
         internal RectTransform window, grid, content;
-        RectTransform toolbar, sidebar, candidateContent;
+        RectTransform toolbar, sidebar, candidateContent, resizeHandle;
         Text statusText, candidateTitle;
         ScrollRect candidateScroll;
         Font font;
@@ -75,7 +75,7 @@ namespace GinTimelineHack
             rightCandidates.SettingChanged += delegate { RebuildCandidates(); };
             candidateWidth.SettingChanged += delegate { PositionPanels(); };
             summaries.SettingChanged += delegate { RefreshGroups(); };
-            Logger.LogInfo("GIN Timeline life hack 1.0.3 ready; original Studio layout retained.");
+            Logger.LogInfo("GIN Timeline life hack 1.0.5 ready; original Studio layout retained.");
         }
 
         void Update()
@@ -134,6 +134,7 @@ namespace GinTimelineHack
             if (native == null) return;
             canvas = Get<Canvas>(native, "_ui");
             window = Get<RectTransform>(native, "_timelineWindow");
+            resizeHandle = Get<RectTransform>(native, "_resizeHandle");
             grid = Get<RectTransform>(native, "_keyframesContainer");
             ScrollRect vertical = Get<ScrollRect>(native, "_verticalScrollView");
             if (canvas == null || window == null || grid == null || vertical == null) return;
@@ -239,7 +240,7 @@ namespace GinTimelineHack
             foreach (GroupUi row in groupRows.Values) row.Destroy();
             groupRows.Clear(); selectedGroups.Clear(); toolbarNeighbors.Clear();
             foreach (GameObject go in owned) if (go != null) Destroy(go);
-            owned.Clear(); toolbar = sidebar = candidateContent = null;
+            owned.Clear(); toolbar = sidebar = candidateContent = resizeHandle = null;
             if (native != null && content != null) try { Call("UpdateInterpolablesView"); } catch { }
             native = null; canvas = null; window = grid = content = null;
         }

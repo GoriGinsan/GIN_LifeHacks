@@ -1,5 +1,17 @@
 # Changes
 
+## v1.0.5 — Resize-safe Timeline tools and ShalltyUtils 1.3.2 verification
+
+Bundle: Timeline helper 1.0.5 + unchanged Advanced mode helper 1.0.2.
+
+- Move the GIN buttons and feedback below Timeline before they cover its resize handle; restore the preferred upper position when space is available.
+- Compare the actual screen rectangles with a small clearance, including after screen-edge clamping, rather than assuming a fixed window width or ShalltyUtils version.
+- Retain the local 1.0.4 screen-top fallback and screen-edge visibility fixes. Version 1.0.4 was a local update and was not a GitHub release.
+- Verify the same DLL with ShalltyUtils 1.3.1 and 1.3.2, including Performance Mode, native resize events, candidate toggles, UI scale and screen edges.
+- Verify scene PNG save and fresh-process reload/playback without either LifeHacks DLL.
+- Build with explicit .NET 3.5-era game/framework references rather than the compiler default reference list.
+
+
 ## v1.0.3 — Timeline interaction fixes and first GitHub distribution
 
 Bundle: Timeline helper 1.0.3 + Advanced mode helper 1.0.2.

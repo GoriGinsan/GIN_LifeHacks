@@ -35,6 +35,7 @@ namespace GinTimelineHack
             RequireField(nativeType, "_self", nativeType, true);
             RequireField(nativeType, "_ui", typeof(Canvas), false);
             RequireField(nativeType, "_timelineWindow", typeof(RectTransform), false);
+            RequireField(nativeType, "_resizeHandle", typeof(RectTransform), false);
             RequireField(nativeType, "_keyframesContainer", typeof(RectTransform), false);
             RequireField(nativeType, "_verticalScrollView", typeof(ScrollRect), false);
             RequireField(nativeType, "_selectedOCI", typeof(Studio.ObjectCtrlInfo), false);

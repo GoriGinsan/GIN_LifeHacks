@@ -1,5 +1,39 @@
 # Verification
 
+## v1.0.5, checked 2026-10-29
+
+Koikatsu CharaStudio / Unity 5.6.2f1 / BepInEx 5.4.23.2 / Timeline 1.5.6 / KKPE 2.21.5. The Advanced helper remains the original 1.0.2 binary.
+
+| Combination | Result |
+| --- | --- |
+| Existing local Timeline helper 1.0.4 + Advanced 1.0.2 + ShalltyUtils 1.3.1 | Major functional regression suite passed |
+| Existing local Timeline helper 1.0.4 + Advanced 1.0.2 + ShalltyUtils 1.3.2 | Major functional regression suite passed; resize-handle obstruction reproduced at native minimum width 615 |
+| Timeline helper 1.0.5 + Advanced 1.0.2 + ShalltyUtils 1.3.1 | Functional and rendered layout regression suites passed |
+| Same Timeline 1.0.5 DLL + Advanced 1.0.2 + ShalltyUtils 1.3.2 | Functional and rendered layout regression suites passed |
+
+The old toolbar covered the handle at minimum width: Unity's first raycast hit was `+ Tracks`. With 1.0.5 the first hit is `Resize Handle`, with all four GIN buttons below Timeline. Widening restores the upper placement.
+
+Layout coverage uses the real Timeline resize handle's Unity drag handler, screen rectangles and EventSystem raycasts. It includes shrinking and expanding across widths 615, 640, 645, 650, 700, 800 and 1100; 80%, 100% and 125% canvas scales; top, right and bottom screen edges; candidate panel OFF/ON; and 120 consecutive frames without layout oscillation. Screenshots were inspected at 1920 x 1080. When there is insufficient room below the window, screen-edge clamping keeps the buttons visible near the lower edge.
+
+Functional checks cover Enabled OFF/ON and restoration, native candidate relocation and insertion, Ctrl + right-click routing through the Shallty postfix, native middle click, alternate/disabled bindings, text guards, S/current values, odd/even selection, folded group selection, marker colors, mixed Alt drag with Shallty Performance Mode ON/OFF, collisions, ordering and camera guards. Advanced checks cover native L/R, visibility-template disk round trips, 154 expression morphs / 6 bones, native KKPE XML and rendered thumbnails.
+
+A native scene PNG saved with LifeHacks 1.0.5/1.0.2 and ShalltyUtils 1.3.2 was reopened in a fresh Studio process using ShalltyUtils 1.3.1 with both LifeHacks DLLs and their assemblies absent. Exact Timeline XML (tree, order, times, values, curves, duration) matched, native KKPE restored 154 morphs / 6 bones, and native camera FOV seeking and continuous playback passed. Neither LifeHacks GUID appeared as an ExtendedSave provider. Other installed scene providers were retained.
+
+| Runtime DLL | Plugin version | SHA256 |
+| --- | --- | --- |
+| GIN Timeline life hack.dll | 1.0.5 | `9747753B3A190F13DB4302AE9F1C3B5389D861CCCFE6BD3A45606D670F472A05` |
+| GIN Advance mode life hack.dll | 1.0.2 | `95C4C1AFBDB0A16FBD3A491DED55FC5B3D47509A97EADA11985F75CB1DCAF2DE` |
+| KK_ShalltyUtils.dll (upstream) | 1.3.1 | `7CCA95ACE39E6317B4D63D78C2532D7A57589153E2AA6C5F8D1EB78DC40EBCBF` |
+| KK_ShalltyUtils.dll (upstream) | 1.3.2 | `1218296091923D674FA691AB8D7686CACDC6802996589FB9C04B6F290D30DD27` |
+
+All installation ZIPs contain only the stated GIN runtime DLLs, with fixed filenames and byte equality to the tested binaries. No third-party DLLs, test drivers, personal files or configuration files are redistributed.
+
+Limits: this is KK verification, not KKS. Future ShalltyUtils versions, every third-party plugin combination, dense production scenes and long editing sessions are untested. Functional input regressions use native method calls and Unity pointer events; this is not exhaustive physical keyboard/mouse coverage. Graphics runs had no LifeHacks exceptions. An initial graphics-disabled harness run produced KKAPI tooltip errors with a null input module; rendered runs used the native input module. The test driver initializes that module for hidden, unfocused launches only and retains original KKAPI processing. Native shutdown can report Unity JobTempAlloc warnings.
+
+---
+
+## Historical v1.0.3 verification
+
 ## Runtime-tested combination
 
 Koikatsu CharaStudio / Unity 5.6.2f1 / BepInEx 5.4.23.2 / HarmonyX 2.9.

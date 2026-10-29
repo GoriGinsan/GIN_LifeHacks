@@ -9,7 +9,8 @@ foreach($part in @('Timeline','Advanced')) {
     $output=Join-Path $project 'bin'
     New-Item -ItemType Directory -Force -Path $output | Out-Null
     $name=if($part -eq 'Timeline'){'GIN Timeline life hack.dll'}else{'GIN Advance mode life hack.dll'}
-    $argsList=@('/nologo','/target:library','/optimize+','/debug:pdbonly',('/out:'+(Join-Path $output $name)),'/reference:System.Core.dll','/reference:System.Xml.dll')
+    $framework=Join-Path $env:WINDIR 'Microsoft.NET\Framework\v2.0.50727'
+    $argsList=@('/noconfig','/nologo','/target:library','/optimize+','/debug:pdbonly',('/out:'+(Join-Path $output $name)),('/reference:'+(Join-Path $framework 'System.dll')),('/reference:'+(Join-Path $framework 'System.Xml.dll')),('/reference:'+(Join-Path $GamePath 'CharaStudio_Data\Managed\System.Core.dll')))
     $argsList+=$references | ForEach-Object {'/reference:'+$_}
     if($part -eq 'Timeline') { $argsList+='/reference:'+(Join-Path $GamePath 'BepInEx\plugins\Timeline.dll') }
     $argsList+=Get-ChildItem -LiteralPath $project -Filter '*.cs' -File -Recurse | Where-Object {$_.FullName -notmatch '[\\/]bin[\\/]'} | ForEach-Object FullName
