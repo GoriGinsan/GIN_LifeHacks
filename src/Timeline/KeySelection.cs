@@ -1,15 +1,4 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using System.Text;
-using BepInEx;
-using BepInEx.Configuration;
-using HarmonyLib;
-using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
 using Timeline;
 using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;

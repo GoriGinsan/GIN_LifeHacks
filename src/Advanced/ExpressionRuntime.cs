@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Text;
 using UnityEngine;
 
 namespace GinAdvanceHack
@@ -549,6 +548,7 @@ namespace GinAdvanceHack
                     missing.Add(entry.Name);
                     continue;
                 }
+                FollowEyeLink(item.Wrapper, entry.Name, entry.Weight);
                 shapes++;
                 if (!changed.Contains(item))
                 {
@@ -618,6 +618,37 @@ namespace GinAdvanceHack
             }
 
             return result;
+        }
+
+        // An expression stores the face, teeth and eyebrow renderers only. The eyelashes, tears and
+        // similar renderers follow the face through KKPE's eye link, exactly as Timeline's
+        // "BS (renderer, L)" rows do. Without this a closed eye loses its eyelashes until the
+        // Timeline is moved.
+        static void FollowEyeLink(object wrapper, string shape, float weight)
+        {
+            IList linked = ExpressionReflect.Get(wrapper, "_linkedBlendRenderers") as IList;
+            IDictionary indices = ExpressionReflect.Get(wrapper, "_blendIndics") as IDictionary;
+            IList keys = ExpressionReflect.Get(wrapper, "_linkKeynameList") as IList;
+            if (linked == null || linked.Count == 0 || indices == null || keys == null || !indices.Contains(shape))
+            {
+                return;
+            }
+
+            int index = (int)indices[shape];
+            if (index >= keys.Count)
+            {
+                return;   // not one of the linked (eye) shapes
+            }
+
+            foreach (object other in linked)
+            {
+                IDictionary otherKeys = ExpressionReflect.Get(other, "_linkKeynames") as IDictionary;
+                IList otherNames = ExpressionReflect.Get(other, "_blendNames") as IList;
+                if (otherKeys != null && otherNames != null && otherKeys.Contains(keys[index]))
+                {
+                    ExpressionReflect.Call(other, "SetBlendShapeWeight", new Type[] { typeof(string), typeof(float) }, otherNames[(int)otherKeys[keys[index]]], weight);
+                }
+            }
         }
 
         internal static byte[] CaptureThumbnail()

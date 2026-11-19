@@ -12,6 +12,7 @@ using UnityEngine.UI;
 using Timeline;
 using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;
+
 namespace GinTimelineHack
 {
     public sealed partial class Plugin
@@ -260,6 +261,9 @@ namespace GinTimelineHack
                     roots[0] == ga && roots[1] == gb && roots[2] == leafD,
                     "selected group block moves up preserving internal order");
                 Require(
+                    !MoveSelected(-1) && roots[0] == ga && roots[1] == gb && roots[2] == leafD,
+                    "a block already at the top keeps its order");
+                Require(
                     MoveSelected(1) && roots[0] == leafD && roots[1] == ga && roots[2] == gb,
                     "selected group block moves back down");
                 Require(
@@ -269,7 +273,8 @@ namespace GinTimelineHack
                 Call("SelectInterpolable", (object)new Interpolable[] { b });
                 Require(MoveSelected(-1), "selected leaf moves");
                 Require(((LeafNode<Interpolable>)((IGroupNode)ga).children[0]).obj == b, "leaf moves within group only");
-                result.AppendLine("PASS Shift Up/Down command: selected sibling group block and leaf reorder; parent/children preserved");
+                result.AppendLine("PASS Up/Down reorder command: selected sibling group block and leaf reorder; block stops intact at the edge; parent/children preserved");
+                CheckExpandAll(result, ga, gb);
                 rightCandidates.Value = false;
                 Require(relocated.Count == 0, "candidate toggle restores original parents");
                 rightCandidates.Value = true;
@@ -405,6 +410,53 @@ namespace GinTimelineHack
             RefreshGroups();
             Get<GameObject>(native, "_keyframeWindow").SetActive(false);
             return "PASS preview: disposable native camera tracks and aggregate group prepared; original game never touched";
+        }
+
+        // Ctrl + arrow: the handler sits after the native one on every visible folder header, and
+        // every folder (nested ones included) follows the state of the clicked folder.
+        void CheckExpandAll(StringBuilder result, object ga, object gb)
+        {
+            Set(Get<object>(ga, "obj"), "expanded", true);
+            Set(Get<object>(gb, "obj"), "expanded", true);
+            Call("UpdateInterpolablesView");
+            Canvas.ForceUpdateCanvases();
+            RefreshGroups();
+            int headers = 0;
+            foreach (object h in Get<IList>(native, "_displayedOwnerHeader"))
+            {
+                GameObject container = Get<RectTransform>(h, "container").gameObject;
+                if (Get<object>(h, "group") == null || !Get<GameObject>(h, "gameObject").activeSelf)
+                {
+                    continue;
+                }
+
+                Require(headerActions.ContainsKey(container), "folder header has the Ctrl handler");
+                int nativeAt = -1, oursAt = -1, at = 0;
+                foreach (Component c in container.GetComponents<Component>())
+                {
+                    if (c == headerActions[container])
+                    {
+                        oursAt = at;
+                    }
+                    else if (c != null && c.GetType().GetField("onPointerDown", Flags) != null)
+                    {
+                        nativeAt = at;
+                    }
+
+                    at++;
+                }
+
+                Require(nativeAt >= 0 && oursAt > nativeAt, "the Ctrl handler runs after the native open / close");
+                headers++;
+            }
+
+            Require(headers >= 2, "folder headers visible: " + headers);
+            int count = SetAllFoldersExpanded(false);
+            Require(count >= 2 && !Get<bool>(Get<object>(ga, "obj"), "expanded") && !Get<bool>(Get<object>(gb, "obj"), "expanded"), "every folder closes");
+            SetAllFoldersExpanded(true);
+            Require(Get<bool>(Get<object>(ga, "obj"), "expanded") && Get<bool>(Get<object>(gb, "obj"), "expanded"), "every folder opens");
+            RefreshGroups();
+            result.AppendLine("PASS Ctrl + folder arrow: handler after the native toggle on " + headers + " headers; all " + count + " folders close and open together");
         }
 
         static void Require(bool condition, string text)

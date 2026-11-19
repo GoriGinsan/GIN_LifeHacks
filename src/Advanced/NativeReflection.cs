@@ -1,10 +1,7 @@
 using System;
-using System.IO;
+using System.Collections.Generic;
 using System.Reflection;
-using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
-using UnityEngine;
 
 namespace GinAdvanceHack
 {
@@ -12,20 +9,52 @@ namespace GinAdvanceHack
     {
         internal const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 
+        // Lookups are cached: the UI patches read native state for every row on every GUI event.
+        static readonly Dictionary<string, Type> types = new Dictionary<string, Type>();
+        static readonly Dictionary<Type, Dictionary<string, MemberInfo>> members = new Dictionary<Type, Dictionary<string, MemberInfo>>();
+
         internal static Type Type(string name)
         {
+            Type found;
+            if (types.TryGetValue(name, out found))
+            {
+                return found;
+            }
+
             foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
             {
-                Type t = a.GetType(name, false);
-                if (t != null)
+                found = a.GetType(name, false);
+                if (found != null)
                 {
-                    return t;
+                    types[name] = found;
+                    return found;
                 }
             }
 
             return null;
         }
 
+        // Field or property by name, including inherited ones; null when the member does not exist.
+        static MemberInfo Member(Type type, string name)
+        {
+            Dictionary<string, MemberInfo> known;
+            if (!members.TryGetValue(type, out known))
+            {
+                known = new Dictionary<string, MemberInfo>();
+                members[type] = known;
+            }
+
+            MemberInfo member;
+            if (!known.TryGetValue(name, out member))
+            {
+                member = (MemberInfo)AccessTools.Field(type, name) ?? AccessTools.Property(type, name);
+                known[name] = member;
+            }
+
+            return member;
+        }
+
+        // Read an instance member, or a static member when a Type is passed. Missing members read as null.
         internal static object Get(object obj, string name)
         {
             if (obj == null)
@@ -34,20 +63,22 @@ namespace GinAdvanceHack
             }
 
             Type t = obj as Type ?? obj.GetType();
-            FieldInfo f = AccessTools.Field(t, name);
+            object instance = obj is Type ? null : obj;
+            MemberInfo member = Member(t, name);
+            FieldInfo f = member as FieldInfo;
             if (f != null)
             {
-                return f.GetValue(obj is Type ? null : obj);
+                return f.GetValue(instance);
             }
 
-            PropertyInfo p = AccessTools.Property(t, name);
-            return p == null ? null : p.GetValue(obj is Type ? null : obj, null);
+            PropertyInfo p = member as PropertyInfo;
+            return p == null ? null : p.GetValue(instance, null);
         }
 
         internal static void Set(object obj, string name, object value)
         {
             Type t = obj as Type ?? obj.GetType();
-            FieldInfo f = AccessTools.Field(t, name);
+            FieldInfo f = Member(t, name) as FieldInfo;
             if (f == null)
             {
                 throw new MissingFieldException(t.FullName, name);

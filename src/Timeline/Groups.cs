@@ -8,6 +8,7 @@ using UnityEngine.UI;
 using Timeline;
 using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Object = System.Object;
+
 namespace GinTimelineHack
 {
     public sealed partial class Plugin
@@ -57,6 +58,7 @@ namespace GinTimelineHack
                 }
 
                 alive.Add(g);
+                HookExpandAll(h);
                 GroupUi ui;
                 if (!groupRows.TryGetValue(g, out ui))
                 {
@@ -117,6 +119,45 @@ namespace GinTimelineHack
             HookNativeGroupDrags();
         }
 
+        // Ctrl + click on a folder's open / close arrow: every folder takes the state the clicked
+        // one has just been given. The native header handler toggles the clicked folder first;
+        // this handler is added after it on the same object, so Unity calls it afterwards.
+        // A header display is reused for other folders, so the folder is read at click time.
+        void HookExpandAll(object header)
+        {
+            GameObject container = Get<RectTransform>(header, "container").gameObject;
+            if (headerActions.ContainsKey(container))
+            {
+                return;
+            }
+
+            PointerAction action = container.AddComponent<PointerAction>();
+            action.action = delegate (PointerEventData e)
+            {
+                object group = Get<object>(header, "group");
+                if (e.button == PointerEventData.InputButton.Left && Ctrl && group != null)
+                {
+                    SetAllFoldersExpanded(Get<bool>(Get<object>(group, "obj"), "expanded"));
+                }
+            };
+            headerActions.Add(container, action);
+        }
+
+        internal int SetAllFoldersExpanded(bool expanded)
+        {
+            HashSet<object> groups = new HashSet<object>();
+            GatherGroups(RootNodes(), groups);
+            foreach (object group in groups)
+            {
+                Set(Get<object>(group, "obj"), "expanded", expanded);
+            }
+
+            Call("UpdateInterpolablesView");
+            nextRefresh = 0;
+            Note("All " + groups.Count + " folders " + (expanded ? "opened" : "closed"));
+            return groups.Count;
+        }
+
         static void GatherGroups(List<INode> nodes, HashSet<object> result)
         {
             foreach (INode n in nodes)
@@ -160,19 +201,13 @@ namespace GinTimelineHack
             arrowRect.anchorMax = new Vector2(0, 1);
             arrowRect.offsetMin = new Vector2(2, 0);
             arrowRect.offsetMax = new Vector2(20, 0);
-            ui.arrow = Label(arrowRect, "▼", 12);
-            ui.arrow.raycastTarget = false;
-            // The arrow container intentionally has no event handler: the original header still opens/closes it.
+            // The arrow has no event handler of its own: the original header still opens/closes the group.
             ui.arrow = arrowRect.gameObject.AddComponent<Text>();
             ui.arrow.font = font;
             ui.arrow.fontSize = 12;
+            ui.arrow.color = Color.white;
             ui.arrow.alignment = TextAnchor.MiddleCenter;
             ui.arrow.raycastTarget = false;
-            Transform redundant = arrowRect.Find("Label");
-            if (redundant != null)
-            {
-                UnityEngine.Object.Destroy(redundant.gameObject);
-            }
 
             RectTransform rr = MakeRect("GIN Group summary", grid, false);
             ui.row = rr.gameObject.AddComponent<GroupGraphic>();
@@ -231,7 +266,7 @@ namespace GinTimelineHack
 
             trackFocus = true;
             nextRefresh = 0;
-            Note(selectedGroups.Count + " group(s) selected — Shift + Up / Down");
+            Note(selectedGroups.Count + " group(s) selected - " + MoveShortcutLabel() + " to reorder");
         }
 
         internal static List<Interpolable> Descendants(IGroupNode group)
@@ -371,7 +406,43 @@ namespace GinTimelineHack
             return Get<List<INode>>(Get<object>(native, "_interpolablesTree"), "tree");
         }
 
+        // Move the selected rows and groups one place up (-1) or down (+1) among their siblings.
+        // Only the order inside each parent changes; it is stored in native scene data.
         public bool MoveSelected(int direction)
+        {
+            List<INode> selected = SelectedTopNodes();
+            if (selected.Count == 0)
+            {
+                Note("Select a track or group name first");
+                return false;
+            }
+
+            Dictionary<List<INode>, bool> parents = new Dictionary<List<INode>, bool>();
+            foreach (INode node in selected)
+            {
+                parents[node.parent == null ? RootNodes() : node.parent.children] = true;
+            }
+
+            int moved = 0;
+            foreach (List<INode> siblings in parents.Keys)
+            {
+                moved += ShiftWithinSiblings(siblings, selected, direction);
+            }
+
+            if (moved == 0)
+            {
+                Note(direction < 0 ? "Already at the top" : "Already at the bottom");
+                return false;
+            }
+
+            Call("UpdateInterpolablesView");
+            Note("Moved " + moved + (direction < 0 ? " up" : " down"));
+            return true;
+        }
+
+        // Selected groups and rows, without those that sit inside another selected group:
+        // a group moves together with everything it contains.
+        List<INode> SelectedTopNodes()
         {
             object tree = Get<object>(native, "_interpolablesTree");
             List<INode> selected = new List<INode>();
@@ -380,45 +451,59 @@ namespace GinTimelineHack
                 selected.Add((INode)group);
             }
 
-            MethodInfo leafMethod = tree.GetType().GetMethod("GetLeafNode", Flags);
+            MethodInfo leafOf = tree.GetType().GetMethod("GetLeafNode", Flags);
             foreach (Interpolable track in Get<IList>(native, "_selectedInterpolables"))
             {
-                INode node = (INode)leafMethod.Invoke(tree, new object[] { track });
-                if (!selected.Contains(node))
+                INode node = (INode)leafOf.Invoke(tree, new object[] { track });
+                if (node != null && !selected.Contains(node))
                 {
                     selected.Add(node);
                 }
             }
+
             List<INode> top = new List<INode>();
             foreach (INode node in selected)
             {
-                bool parentSelected = false;
-                IGroupNode p = node.parent;
-                while (p != null)
+                bool insideSelectedGroup = false;
+                for (IGroupNode parent = node.parent; parent != null; parent = parent.parent)
                 {
-                    if (selected.Contains(p))
+                    if (selected.Contains(parent))
                     {
-                        parentSelected = true;
+                        insideSelectedGroup = true;
                         break;
                     }
-                    p = p.parent;
                 }
-                if (!parentSelected)
+
+                if (!insideSelectedGroup)
                 {
                     top.Add(node);
                 }
             }
-            if (top.Count == 0)
+
+            return top;
+        }
+
+        // Walk from the side the selection moves toward, so neighbouring selected items keep
+        // their order and stop together at the edge instead of swapping with each other.
+        static int ShiftWithinSiblings(List<INode> siblings, List<INode> selected, int direction)
+        {
+            int moved = 0;
+            int first = direction < 0 ? 0 : siblings.Count - 1;
+            for (int i = first; i >= 0 && i < siblings.Count; i -= direction)
             {
-                Note("Select a track or group name first");
-                return false;
+                int destination = i + direction;
+                if (!selected.Contains(siblings[i]) || destination < 0 || destination >= siblings.Count || selected.Contains(siblings[destination]))
+                {
+                    continue;
+                }
+
+                INode node = siblings[i];
+                siblings[i] = siblings[destination];
+                siblings[destination] = node;
+                moved++;
             }
-            // Native Tree.MoveUp/Down preserves parents and saves the order in native scene data.
-            MethodInfo move = tree.GetType().GetMethod(direction < 0 ? "MoveUp" : "MoveDown", Flags, null, new Type[] { typeof(IEnumerable<INode>) }, null);
-            move.Invoke(tree, new object[] { top });
-            Call("UpdateInterpolablesView");
-            Note("Moved " + top.Count + (direction < 0 ? " up" : " down"));
-            return true;
+
+            return moved;
         }
     }
 

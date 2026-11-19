@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -16,10 +15,6 @@ namespace GinTimelineHack
         MethodInfo nativeFindOccupant;
         Version nativeVersion;
         bool contractValidated;
-
-
-
-
 
         // These two released builds are validated deliberately. Unknown builds keep native UI intact.
         // The old binary remains the compilation baseline; no new public assembly reference is required.
@@ -76,6 +71,7 @@ namespace GinTimelineHack
             RequireMethod(treeType, "GetLeafNode", typeof(LeafNode<Interpolable>), false, typeof(Interpolable));
             RequireMethod(treeType, "GroupTogether", groupNode, false, typeof(IEnumerable<Interpolable>), group);
             RequireMethod(treeType, "Remove", typeof(void), false, typeof(INode));
+            RequireMethod(treeType, "ParentTo", typeof(void), false, typeof(INode), groupNode);
 
             Type header = RequireDisplay("HeaderDisplay", "_displayedOwnerHeader");
             RequireField(header, "container", typeof(RectTransform), false);
@@ -184,11 +180,23 @@ namespace GinTimelineHack
             return p;
         }
 
+        // The key occupying this time. Timeline 1.5.6 treats approximately equal times as the
+        // same key (pixel coordinates do not round-trip exactly); use its own rule when present.
+        internal Timeline.Keyframe KeyAt(Interpolable track, float time)
+        {
+            if (nativeFindOccupant != null)
+            {
+                return (Timeline.Keyframe)nativeFindOccupant.Invoke(null, new object[] { track, time, null });
+            }
+
+            Timeline.Keyframe key;
+            track.keyframes.TryGetValue(time, out key);
+            return key;
+        }
+
         internal bool OccupiedAt(Interpolable track, float time)
         {
-            // Latest Timeline rejects approximately-equal times after pixel-coordinate round trips.
-            // Use the provider's own rule; do not bypass it or report its rejection as a failed insert.
-            return nativeFindOccupant != null ? nativeFindOccupant.Invoke(null, new object[] { track, time, null }) != null : track.keyframes.ContainsKey(time);
+            return KeyAt(track, time) != null;
         }
     }
 }

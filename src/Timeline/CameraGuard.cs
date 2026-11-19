@@ -1,19 +1,5 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using System.Text;
-using BepInEx;
-using BepInEx.Configuration;
-using HarmonyLib;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
-using Timeline;
-using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;
-using Object = System.Object;
 
 namespace GinTimelineHack
 {
@@ -46,7 +32,7 @@ namespace GinTimelineHack
                 }
 
                 bool commitHeld = CommitShortcutPressed(false) && CanUseShortcut(true);
-                bool moveHeld = (Input.GetKey(upShortcut.Value.MainKey) || Input.GetKey(downShortcut.Value.MainKey)) && Shift && CanUseShortcut(false);
+                bool moveHeld = (ShortcutHeld(upShortcut.Value) || ShortcutHeld(downShortcut.Value)) && CanUseShortcut(false);
                 return !(commitHeld || moveHeld || TextFocused());
             };
             Studio.CameraControl.NoCtrlFunc mouseBefore = previousMouse, zoomBefore = previousZoom;

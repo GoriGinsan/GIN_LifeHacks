@@ -155,33 +155,6 @@ namespace GinTimelineHack
             return GUIUtility.keyboardControl != 0 && GUIUtility.keyboardControl == nativeTextControl && Time.frameCount - nativeTextFrame <= 2;
         }
 
-        internal static bool SettingsOpen()
-        {
-            // No reference or required dependency on ConfigurationManager; inspect the instance actually loaded.
-            foreach (BepInEx.PluginInfo info in BepInEx.Bootstrap.Chainloader.PluginInfos.Values)
-            {
-                if (info.Instance == null || info.Instance.GetType().FullName != "ConfigurationManager.ConfigurationManager")
-                {
-                    continue;
-                }
-
-                Type type = info.Instance.GetType();
-                PropertyInfo windowOpen = type.GetProperty("DisplayingWindow", Flags);
-                if (windowOpen != null && windowOpen.PropertyType == typeof(bool) && (bool)windowOpen.GetValue(info.Instance, null))
-                {
-                    return true;
-                }
-
-                Type drawer = type.Assembly.GetType("ConfigurationManager.SettingFieldDrawer", false);
-                PropertyInfo rebinding = drawer == null ? null : drawer.GetProperty("SettingKeyboardShortcut", StaticFlags);
-                if (rebinding != null && rebinding.PropertyType == typeof(bool) && (bool)rebinding.GetValue(null, null))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         static bool DefaultAddBinding(KeyboardShortcut shortcut)
         {
             if (shortcut.MainKey != KeyCode.Mouse1)

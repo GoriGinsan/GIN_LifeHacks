@@ -1,19 +1,9 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using System.Text;
-using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Timeline;
-using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;
-using Object = System.Object;
 
 namespace GinTimelineHack
 {
@@ -58,46 +48,8 @@ namespace GinTimelineHack
             Patch("UpdateInterpolableSelection", null, "TrackSelectionChanged", null);
             InstallInputHooks();
             InstallGroupInteraction();
-            toolbar = MakeRect("GIN Timeline tools", window, true);
-            Put(toolbar, 330, -26, 338, 24);
-            MakeButton(toolbar, "Anchor", 0, 0, 68, 24, delegate
-            {
-                CaptureAnchor();
-            });
-            MakeButton(
-                toolbar,
-                "1 / 3 / 5",
-                70,
-                0,
-                88,
-                24,
-                delegate
-            {
-                SelectAlternating(true);
-            });
-            MakeButton(
-                toolbar,
-                "2 / 4 / 6",
-                160,
-                0,
-                88,
-                24,
-                delegate
-            {
-                SelectAlternating(false);
-            });
-            MakeButton(
-                toolbar,
-                "+ Tracks",
-                250,
-                0,
-                86,
-                24,
-                delegate
-            {
-                rightCandidates.Value = !rightCandidates.Value;
-                Config.Save();
-            });
+            InstallAutoKey();
+            BuildToolbar();
             foreach (Button b in window.GetComponentsInChildren<Button>(true))
             {
                 if (b.transform.IsChildOf(toolbar))
@@ -113,13 +65,6 @@ namespace GinTimelineHack
                 }
             }
 
-            RectTransform status = MakeRect("GIN Timeline feedback", toolbar, false);
-            Put(status, 0, -23, 650, 21);
-            statusText = status.gameObject.AddComponent<Text>();
-            statusText.font = font;
-            statusText.fontSize = 14;
-            statusText.color = Color.white;
-            statusText.raycastTarget = false;
             CreateSidebar();
             attached = true;
             InstallCameraGuard();
@@ -152,6 +97,8 @@ namespace GinTimelineHack
             mouseGuard = previousMouse = zoomGuard = previousZoom = null;
             ResetGroupInteraction();
             ResetInputHooks();
+            ResetAutoKey();
+            faceKeyTarget = null;
             if (harmony != null)
             {
                 harmony.UnpatchSelf();
@@ -175,8 +122,17 @@ namespace GinTimelineHack
                 }
             }
 
+            foreach (KeyValuePair<GameObject, PointerAction> a in headerActions)
+            {
+                if (a.Value != null)
+                {
+                    Destroy(a.Value);
+                }
+            }
+
             modelActions.Clear();
             keyActions.Clear();
+            headerActions.Clear();
             foreach (GroupUi row in groupRows.Values)
             {
                 row.Destroy();

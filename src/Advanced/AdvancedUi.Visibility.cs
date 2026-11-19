@@ -2,13 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Reflection;
-using System.Reflection.Emit;
-using System.Text;
-using System.Xml;
-using BepInEx;
-using HarmonyLib;
 using UnityEngine;
 
 namespace GinAdvanceHack
@@ -69,6 +62,7 @@ namespace GinAdvanceHack
             }
 
             GUILayout.EndHorizontal();
+            DrawTimelineRowButtons(editor);
         }
 
         private static string RendererKey(object editor)

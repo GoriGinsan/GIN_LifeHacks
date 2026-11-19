@@ -1,38 +1,32 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
-using System.Text;
-using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
-using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
-using Timeline;
-using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;
-using Object = System.Object;
 
 namespace GinTimelineHack
 {
+    // Access to private members of the native Timeline plugin.
+    // Lookups are cached: several of them run every frame.
     public sealed partial class Plugin
     {
+        static readonly Dictionary<Type, Dictionary<string, MemberInfo>> memberCache = new Dictionary<Type, Dictionary<string, MemberInfo>>();
+        static readonly Dictionary<string, MethodInfo[]> nativeMethodCache = new Dictionary<string, MethodInfo[]>();
+
         void Patch(string name, string pre, string post, string final)
         {
-            HarmonyMethod p = H(pre), q = H(post), f = H(final);
-            if (p != null)
+            HarmonyMethod prefix = H(pre), postfix = H(post), finalizer = H(final);
+            if (prefix != null)
             {
-                p.priority = Priority.First;
+                prefix.priority = Priority.First;
             }
 
-            if (q != null)
+            if (postfix != null)
             {
-                q.priority = Priority.Last;
+                postfix.priority = Priority.Last;
             }
 
-            harmony.Patch(Method(name), p, q, null, f, null);
+            harmony.Patch(Method(name), prefix, postfix, null, finalizer, null);
         }
 
         static HarmonyMethod H(string name)
@@ -51,69 +45,116 @@ namespace GinTimelineHack
             return result;
         }
 
+        // Invoke a native instance method by name; the overload is chosen from the argument types.
         internal object Call(string name, params object[] args)
         {
-            MethodInfo chosen = null;
-            foreach (MethodInfo m in typeof(Native).GetMethods(Flags))
+            foreach (MethodInfo candidate in NativeMethods(name))
             {
-                if (m.Name != name || m.GetParameters().Length != args.Length)
+                if (AcceptsArguments(candidate, args))
                 {
-                    continue;
-                }
-
-                bool ok = true;
-                ParameterInfo[] p = m.GetParameters();
-                for (int i = 0; i < args.Length; i++)
-                {
-                    if (args[i] != null && !p[i].ParameterType.IsInstanceOfType(args[i]))
-                    {
-                        ok = false;
-                    }
-                }
-
-                if (ok)
-                {
-                    chosen = m;
-                    break;
+                    return candidate.Invoke(native, args);
                 }
             }
 
-            if (chosen == null)
-            {
-                throw new MissingMethodException("Timeline", name);
-            }
-
-            return chosen.Invoke(native, args);
+            throw new MissingMethodException("Timeline", name);
         }
 
+        static MethodInfo[] NativeMethods(string name)
+        {
+            MethodInfo[] methods;
+            if (nativeMethodCache.TryGetValue(name, out methods))
+            {
+                return methods;
+            }
+
+            List<MethodInfo> found = new List<MethodInfo>();
+            foreach (MethodInfo method in typeof(Native).GetMethods(Flags))
+            {
+                if (method.Name == name)
+                {
+                    found.Add(method);
+                }
+            }
+
+            methods = found.ToArray();
+            nativeMethodCache[name] = methods;
+            return methods;
+        }
+
+        static bool AcceptsArguments(MethodInfo method, object[] args)
+        {
+            ParameterInfo[] parameters = method.GetParameters();
+            if (parameters.Length != args.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] != null && !parameters[i].ParameterType.IsInstanceOfType(args[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Read a field or property (public or private) by name.
         internal static T Get<T>(object target, string name)
         {
-            FieldInfo f = target.GetType().GetField(name, Flags);
-            if (f != null)
+            MemberInfo member = FindMember(target.GetType(), name);
+            FieldInfo field = member as FieldInfo;
+            if (field != null)
             {
-                return (T)f.GetValue(target);
+                return (T)field.GetValue(target);
             }
 
-            PropertyInfo p = target.GetType().GetProperty(name, Flags);
-            if (p == null)
-            {
-                throw new MissingMemberException(target.GetType().Name, name);
-            }
-
-            return (T)p.GetValue(target, null);
+            return (T)((PropertyInfo)member).GetValue(target, null);
         }
 
         internal static void Set(object target, string name, object value)
         {
-            FieldInfo f = target.GetType().GetField(name, Flags);
-            if (f != null)
+            MemberInfo member = FindMember(target.GetType(), name);
+            FieldInfo field = member as FieldInfo;
+            if (field != null)
             {
-                f.SetValue(target, value);
+                field.SetValue(target, value);
             }
             else
             {
-                target.GetType().GetProperty(name, Flags).SetValue(target, value, null);
+                ((PropertyInfo)member).SetValue(target, value, null);
             }
+        }
+
+        static MemberInfo FindMember(Type type, string name)
+        {
+            Dictionary<string, MemberInfo> members;
+            if (!memberCache.TryGetValue(type, out members))
+            {
+                members = new Dictionary<string, MemberInfo>();
+                memberCache[type] = members;
+            }
+
+            MemberInfo member;
+            if (members.TryGetValue(name, out member))
+            {
+                return member;
+            }
+
+            member = type.GetField(name, Flags);
+            if (member == null)
+            {
+                member = type.GetProperty(name, Flags);
+            }
+
+            if (member == null)
+            {
+                throw new MissingMemberException(type.Name, name);
+            }
+
+            members[name] = member;
+            return member;
         }
 
         internal static string Error(Exception e)

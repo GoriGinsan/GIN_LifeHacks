@@ -1,14 +1,6 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Reflection;
-using System.Reflection.Emit;
-using System.Text;
-using System.Xml;
-using BepInEx;
-using HarmonyLib;
+using GinShared;
 using UnityEngine;
 
 namespace GinAdvanceHack
@@ -253,6 +245,7 @@ namespace GinAdvanceHack
             {
                 delta = -gesture.Total;
                 GUIUtility.hotControl = 0;
+                EndlessDrag.End();
                 scrubs.Remove(id);
                 e.Use();
                 return delta;
@@ -267,7 +260,9 @@ namespace GinAdvanceHack
 
                 if (gesture.Dragged)
                 {
-                    delta = ScrubDelta(e.mousePosition.x - gesture.LastX, signedStep, current.host.ScrubPixels.Value, e.shift, e.control);
+                    // Beyond the screen edge too (EndlessDrag holds the cursor once the scrub moves).
+                    float pixels = EndlessDrag.Moved(new Vector2(e.mousePosition.x - gesture.LastX, 0f)).x;
+                    delta = ScrubDelta(pixels, signedStep, current.host.ScrubPixels.Value, e.shift, e.control);
                     gesture.Total += delta;
                     gesture.LastX = e.mousePosition.x;
                 }
@@ -282,6 +277,7 @@ namespace GinAdvanceHack
                 }
 
                 GUIUtility.hotControl = 0;
+                EndlessDrag.End();
                 scrubs.Remove(id);
                 e.Use();
             }
@@ -303,6 +299,7 @@ namespace GinAdvanceHack
                 GUIUtility.hotControl = 0;
             }
 
+            EndlessDrag.End();
             scrubs.Clear();
         }
     }

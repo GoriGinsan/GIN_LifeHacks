@@ -1,35 +1,31 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
-using System.Text;
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Timeline;
 using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;
-using Object = System.Object;
 
-[assembly: AssemblyVersion("1.0.6.0")]
-[assembly: AssemblyFileVersion("1.0.6.0")]
+[assembly: AssemblyVersion(GinTimelineHack.Plugin.Version + ".0")]
+[assembly: AssemblyFileVersion(GinTimelineHack.Plugin.Version + ".0")]
 namespace GinTimelineHack
 {
-    [BepInPlugin(Guid, "GIN Timeline life hack", "1.0.6")]
+    [BepInPlugin(Guid, "GIN Timeline life hack", Version)]
     [BepInProcess("CharaStudio.exe")]
     [BepInDependency("com.joan6694.illusionplugins.timeline", BepInDependency.DependencyFlags.HardDependency)]
     public sealed partial class Plugin : BaseUnityPlugin
     {
         public const string Guid = "local.kkworkshop.0a52b20541f5.gin-timeline-life-hack";
+        public const string Version = "1.1.0";
         internal static Plugin Self;
         internal const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         internal const BindingFlags StaticFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-        ConfigEntry<bool> enabledSetting, rightCandidates, summaries;
-        ConfigEntry<KeyboardShortcut> addShortcut, commitShortcut, upShortcut, downShortcut;
+        ConfigEntry<bool> enabledSetting, rightCandidates, summaries, arrowDefaultsApplied;
+        ConfigEntry<KeyboardShortcut> addShortcut, commitShortcut, upShortcut, downShortcut, autoKeyShortcut;
+        ConfigEntry<string> autoKeyRowsSetting, autoKeyCurveSetting;
         ConfigEntry<int> candidateWidth;
         Harmony harmony;
         internal Native native;
@@ -48,6 +44,7 @@ namespace GinTimelineHack
         readonly Dictionary<object, GroupUi> groupRows = new Dictionary<object, GroupUi>();
         readonly Dictionary<GameObject, PointerAction> modelActions = new Dictionary<GameObject, PointerAction>();
         readonly Dictionary<GameObject, PointerAction> keyActions = new Dictionary<GameObject, PointerAction>();
+        readonly Dictionary<GameObject, PointerAction> headerActions = new Dictionary<GameObject, PointerAction>();
         readonly HashSet<object> selectedGroups = new HashSet<object>();
         readonly List<RectTransform> toolbarNeighbors = new List<RectTransform>();
         Key? anchor;
@@ -91,13 +88,35 @@ namespace GinTimelineHack
             upShortcut = Config.Bind(
                 "Input",
                 "MoveTracksUp",
-                new KeyboardShortcut(KeyCode.UpArrow, KeyCode.LeftShift),
-                "Move selected tracks or groups up one position within their parent group.");
+                new KeyboardShortcut(KeyCode.UpArrow),
+                "Move selected tracks or groups up one position within their parent group. Works after clicking inside Timeline.");
             downShortcut = Config.Bind(
                 "Input",
                 "MoveTracksDown",
-                new KeyboardShortcut(KeyCode.DownArrow, KeyCode.LeftShift),
-                "Move selected tracks or groups down one position within their parent group.");
+                new KeyboardShortcut(KeyCode.DownArrow),
+                "Move selected tracks or groups down one position within their parent group. Works after clicking inside Timeline.");
+            arrowDefaultsApplied = Config.Bind(
+                "Input",
+                "PlainArrowDefaultsApplied",
+                false,
+                "Internal. Version 1.1.0 changes the default reorder keys from Shift + Up / Down to plain Up / Down once; later custom bindings are kept.");
+            autoKeyShortcut = Config.Bind(
+                "Input",
+                "ToggleAutoKey",
+                new KeyboardShortcut(KeyCode.None),
+                "Optional key that switches Auto Key on and off, in addition to the toolbar button.");
+            autoKeyRowsSetting = Config.Bind(
+                "AutoKey",
+                "Rows",
+                AutoKeyDefaultRows,
+                "Comma separated Timeline row types that Auto Key writes. Default: guide objects (FK / IK / object transforms), KKPE bones and KKPE Blend Shapes.");
+            autoKeyCurveSetting = Config.Bind(
+                "AutoKey",
+                "Curve",
+                PreviousCurve,
+                new ConfigDescription(
+                    "Curve of the keys Auto Key adds: one of Timeline's keyframe presets, or Previous (copy the previous key's curve, as Timeline does). Also in the menu next to the Auto Key button.",
+                    new AcceptableValueList<string>(CurveNames)));
             rightCandidates = Config.Bind(
                 "Layout",
                 "CandidatesOnRight",
@@ -136,7 +155,34 @@ namespace GinTimelineHack
             {
                 RefreshGroups();
             };
-            Logger.LogInfo("GIN Timeline life hack 1.0.6 ready; original Studio layout retained.");
+            autoKeyRowsSetting.SettingChanged += delegate
+            {
+                ReadAutoKeyRows();
+            };
+            ApplyPlainArrowDefaults();
+            Logger.LogInfo("GIN Timeline life hack " + Version + " ready; original Studio layout retained.");
+        }
+
+        // Up to 1.0.6 the reorder keys defaulted to Shift + Up / Down. Replace only those
+        // untouched old defaults, once.
+        void ApplyPlainArrowDefaults()
+        {
+            if (arrowDefaultsApplied.Value)
+            {
+                return;
+            }
+
+            if (IsShiftPlus(upShortcut.Value, KeyCode.UpArrow))
+            {
+                upShortcut.Value = new KeyboardShortcut(KeyCode.UpArrow);
+            }
+
+            if (IsShiftPlus(downShortcut.Value, KeyCode.DownArrow))
+            {
+                downShortcut.Value = new KeyboardShortcut(KeyCode.DownArrow);
+            }
+
+            arrowDefaultsApplied.Value = true;
         }
 
         void Update()
@@ -206,7 +252,15 @@ namespace GinTimelineHack
                 CommitCurrentValues();
             }
 
+            if (autoKeyShortcut.Value.IsDown() && !TextFocused())
+            {
+                SetAutoKey(!autoKey);
+            }
+
             PollAddShortcut();
+            PollCurveMenu();
+            PollAutoKey();
+            PollFaceKey();
         }
 
         void LateUpdate()

@@ -1,19 +1,10 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using System.Text;
-using BepInEx;
 using BepInEx.Configuration;
-using HarmonyLib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Timeline;
-using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
 using Native = Timeline.Timeline;
-using Object = System.Object;
 
 namespace GinTimelineHack
 {
@@ -82,79 +73,6 @@ namespace GinTimelineHack
             return Native.InterfaceVisible && trackFocus;
         }
 
-        static bool KkpeEditing()
-        {
-            bool? extension = AdvanceProperty("IsAdvancedVisible");
-            if (extension.HasValue)
-            {
-                return extension.Value;
-            }
-
-            // Fallback to the verified KKPE selected target's advanced state when the companion DLL is absent.
-            foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (a.GetName().Name != "KKPE")
-                {
-                    continue;
-                }
-
-                Type t = a.GetType("HSPE.MainWindow", false);
-                if (t == null)
-                {
-                    return false;
-                }
-
-                FieldInfo self = t.GetField("_self", StaticFlags);
-                object w = self == null ? null : self.GetValue(null);
-                if (w == null)
-                {
-                    return false;
-                }
-
-                FieldInfo target = t.GetField("_poseTarget", StaticFlags | Flags);
-                object pose = target == null ? null : target.GetValue(w);
-                if (pose == null)
-                {
-                    return false;
-                }
-
-                Type poseType = a.GetType("HSPE.PoseController", false);
-                FieldInfo draw = poseType == null ? null : poseType.GetField("_drawAdvancedMode", StaticFlags);
-                return draw != null && (bool)draw.GetValue(null);
-            }
-
-            return false;
-        }
-
-        static bool PointerOverNativeAdvanced()
-        {
-            if (!KkpeEditing())
-            {
-                return false;
-            }
-
-            foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (a.GetName().Name != "KKPE")
-                {
-                    continue;
-                }
-
-                Type t = a.GetType("HSPE.MainWindow", false);
-                if (t == null)
-                {
-                    return false;
-                }
-
-                FieldInfo self = t.GetField("_self", StaticFlags);
-                object main = self == null ? null : self.GetValue(null);
-                FieldInfo rect = t.GetField("_advancedModeRect", Flags);
-                return main != null && rect != null && ((Rect)rect.GetValue(main)).Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y));
-            }
-
-            return false;
-        }
-
         internal static bool TextFocused()
         {
             bool? advancedText = AdvanceProperty("IsTextInputActive");
@@ -184,26 +102,6 @@ namespace GinTimelineHack
             return false;
         }
 
-        static bool? AdvanceProperty(string name)
-        {
-            foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                Type t = a.GetType("GinAdvanceHack.Plugin", false);
-                if (t == null)
-                {
-                    continue;
-                }
-
-                PropertyInfo p = t.GetProperty(name, StaticFlags);
-                if (p != null && p.PropertyType == typeof(bool))
-                {
-                    return (bool)p.GetValue(null, null);
-                }
-            }
-
-            return null;
-        }
-
         static bool ShortcutDown(KeyboardShortcut key)
         {
             if (key.IsDown())
@@ -217,10 +115,51 @@ namespace GinTimelineHack
                 return false;
             }
 
-            int count = 0;
-            foreach (KeyCode mod in key.Modifiers)
+            return IsShiftPlus(key, key.MainKey) && !Ctrl && !Input.GetKey(KeyCode.LeftAlt) && !Input.GetKey(KeyCode.RightAlt);
+        }
+
+        // Main key and every modifier of the binding are held (either Shift counts for Left Shift).
+        static bool ShortcutHeld(KeyboardShortcut key)
+        {
+            if (key.MainKey == KeyCode.None || !Input.GetKey(key.MainKey))
             {
-                if (mod != KeyCode.LeftShift)
+                return false;
+            }
+
+            foreach (KeyCode modifier in key.Modifiers)
+            {
+                bool held = modifier == KeyCode.LeftShift ? Shift : Input.GetKey(modifier);
+                if (!held)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        static bool HasModifiers(KeyboardShortcut key)
+        {
+            foreach (KeyCode modifier in key.Modifiers)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        // True for exactly "Left Shift + main": the reorder defaults up to version 1.0.6.
+        static bool IsShiftPlus(KeyboardShortcut key, KeyCode main)
+        {
+            if (key.MainKey != main)
+            {
+                return false;
+            }
+
+            int count = 0;
+            foreach (KeyCode modifier in key.Modifiers)
+            {
+                if (modifier != KeyCode.LeftShift)
                 {
                     return false;
                 }
@@ -228,18 +167,19 @@ namespace GinTimelineHack
                 count++;
             }
 
-            return count == 1 && !Ctrl && !Input.GetKey(KeyCode.LeftAlt) && !Input.GetKey(KeyCode.RightAlt);
+            return count == 1;
+        }
+
+        // "UpArrow / DownArrow" for the feedback line.
+        string MoveShortcutLabel()
+        {
+            return upShortcut.Value + " / " + downShortcut.Value;
         }
 
         bool CommitShortcutPressed(bool down)
         {
             KeyboardShortcut binding = commitShortcut.Value;
-            bool plainS = binding.MainKey == KeyCode.S;
-            foreach (KeyCode modifier in binding.Modifiers)
-            {
-                plainS = false;
-                break;
-            }
+            bool plainS = binding.MainKey == KeyCode.S && !HasModifiers(binding);
 
             if (!plainS)
             {

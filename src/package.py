@@ -11,14 +11,15 @@ parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 source = Path(__file__).resolve().parent
 parts = [('Timeline', 'GIN Timeline life hack.dll', 'GIN_Timeline_LifeHack'),
-         ('Advanced', 'GIN Advance mode life hack.dll', 'GIN_Advance_Mode_LifeHack')]
+         ('Advanced', 'GIN Advance mode life hack.dll', 'GIN_Advance_Mode_LifeHack'),
+         ('Pad', 'GIN Pad life hack.dll', 'GIN_Pad_LifeHack')]
 files = []
 for folder, filename, archive_name in parts:
     entry = source / folder / 'bin' / filename
     if not entry.is_file():
         raise SystemExit(f'Build first: {entry}')
     plugin = (source / folder / 'Plugin.cs').read_text(encoding='utf-8-sig')
-    match = re.search(r'\[BepInPlugin\(Guid,\s*"[^"]+",\s*"([0-9.]+)"\)\]', plugin)
+    match = re.search(r'const string Version\s*=\s*"([0-9.]+)"', plugin)
     if not match:
         raise SystemExit(f'Plugin version not found: {folder}')
     files.append((entry, f'BepInEx/plugins/{filename}', match.group(1), archive_name))

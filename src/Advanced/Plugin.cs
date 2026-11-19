@@ -1,25 +1,27 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
-using HarmonyLib;
+using GinShared;
 using UnityEngine;
 
-[assembly: AssemblyVersion("1.0.3.0")]
-[assembly: AssemblyFileVersion("1.0.3.0")]
+[assembly: AssemblyVersion(GinAdvanceHack.Plugin.Version + ".0")]
+[assembly: AssemblyFileVersion(GinAdvanceHack.Plugin.Version + ".0")]
 namespace GinAdvanceHack
 {
-    [BepInPlugin(Guid, "GIN Advance mode life hack", "1.0.3")]
+    [BepInPlugin(Guid, "GIN Advance mode life hack", Version)]
     [BepInProcess("CharaStudio.exe")]
     public sealed partial class Plugin : BaseUnityPlugin
     {
         public const string Guid = "local.kkworkshop.0a52b20541f5.gin-advance-life-hack";
+        public const string Version = "1.1.0";
         internal static Plugin Instance;
         internal ConfigEntry<bool> Enabled, LargeControls, CompactSpacing, VisibilityTools, ScrubBones, TwinShortcut, Expressions;
         internal ConfigEntry<int> ButtonHeight, ThumbSize;
         internal ConfigEntry<float> ScrubPixels;
-        internal ConfigEntry<string> Language;
+        internal ConfigEntry<string> Language, TimelineGroupRenderers;
         internal ExpressionLibrary Library;
         private AdvancedUi ui;
         private UiInputShield inputShield;
@@ -96,6 +98,11 @@ namespace GinAdvanceHack
                 22,
                 new ConfigDescription("Slider thumb / scrollbar hit area", new AcceptableValueRange<int>(14, 36)));
             VisibilityTools = Config.Bind("BlendShapes", "VisibilityTools", true, "Hide rows without changing their values; named display templates.");
+            TimelineGroupRenderers = Config.Bind(
+                "BlendShapes",
+                "TimelineGroupRenderers",
+                "cf_O_face,cf_O_head,cf_O_mayuge",
+                "Renderers that the Timeline 0:00 buttons register as ONE group row (all their Blend Shapes together, linked). Face and eyebrow shapes break when keyed one by one. Other renderers get one row per Blend Shape.");
             ScrubBones = Config.Bind(
                 "Bones",
                 "DragIncrementButtons",
@@ -124,6 +131,7 @@ namespace GinAdvanceHack
 
         private void Update()
         {
+            EndlessDrag.Update();
             if (!Enabled.Value)
             {
                 return;
@@ -143,7 +151,7 @@ namespace GinAdvanceHack
                     ui = new AdvancedUi(this);
                     Library = new ExpressionLibrary(Path.Combine(Paths.GameRootPath, "UserData/GIN/Expressions"), Report);
                     inputShield = new UiInputShield();
-                    Logger.LogInfo("GIN Advanced mode life hack 1.0.3 attached to KKPE " + kkpe.Assembly.GetName().Version + ".");
+                    Logger.LogInfo("GIN Advanced mode life hack " + Version + " attached to KKPE " + kkpe.Assembly.GetName().Version + ".");
                 }
                 catch (Exception ex)
                 {
@@ -170,7 +178,13 @@ namespace GinAdvanceHack
         {
             if (inputShield != null)
             {
-                inputShield.Update(AdvancedUi.ExtensionInputRects, Library != null && Expressions.Value ? Library.InputRects : new Rect[0]);
+                List<Rect> expressionRects = new List<Rect>();
+                if (Expressions.Value && Library != null)
+                {
+                    expressionRects.AddRange(Library.InputRects);
+                }
+
+                inputShield.Update(AdvancedUi.ExtensionInputRects, expressionRects.ToArray());
             }
         }
 

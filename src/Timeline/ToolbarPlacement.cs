@@ -1,14 +1,5 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
-using Timeline;
-using Key = System.Collections.Generic.KeyValuePair<float, Timeline.Keyframe>;
-using Native = Timeline.Timeline;
-using Object = System.Object;
 
 namespace GinTimelineHack
 {
@@ -23,7 +14,12 @@ namespace GinTimelineHack
 
             if (candidateTitle != null)
             {
-                candidateTitle.text = "Interpolables\n" + AddShortcutLabel();
+                // Assign only on change: setting Text.text rebuilds the label mesh.
+                string title = "Interpolables\n" + AddShortcutLabel();
+                if (candidateTitle.text != title)
+                {
+                    candidateTitle.text = title;
+                }
             }
 
             sidebar.anchorMin = new Vector2(1, 0);
@@ -61,10 +57,10 @@ namespace GinTimelineHack
 
                 // Always test the preferred placement, including the feedback even while it is blank.
                 // Testing the previous lower placement would alternate sides every frame.
-                Put(toolbar, x, y, 338, 24);
+                Put(toolbar, x, y, toolbarWidth, ToolbarHeight);
                 if (statusText != null)
                 {
-                    Put(statusText.rectTransform, 0, -23, 650, 21);
+                    Put(statusText.rectTransform, 0, -23, FeedbackWidth, FeedbackHeight);
                 }
 
                 Camera camera = PanelCamera();
@@ -88,10 +84,10 @@ namespace GinTimelineHack
 
                 if (below)
                 {
-                    Put(toolbar, x, window.rect.height + 3, 338, 24);
+                    Put(toolbar, x, window.rect.height + 3, toolbarWidth, ToolbarHeight);
                     if (statusText != null)
                     {
-                        Put(statusText.rectTransform, 0, 26, 650, 21);
+                        Put(statusText.rectTransform, 0, 26, FeedbackWidth, FeedbackHeight);
                     }
                 }
 

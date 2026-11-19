@@ -1,8 +1,4 @@
-using System;
-using System.IO;
 using System.Reflection;
-using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine;
 
