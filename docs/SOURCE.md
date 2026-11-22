@@ -14,6 +14,8 @@ All three plugins target Koikatsu CharaStudio, BepInEx 5 and the game's .NET 3.5
 
 Start with `src/Timeline/Plugin.cs` for state, settings and the Unity update loop.
 
+The Timeline helper has two editions. `build.ps1` builds both by default: the private one (`bin`, compiled with `CHAR_SETUP`) and the public one for distribution (`bin/public`), which leaves out Char Setup because it crashed the game on some installations. The public edition is compiled without `CharacterSetup.cs`, `SetupObjects.cs`, `SetupThemes.cs`, `Diagnostics/WorkflowVerification.cs` and the embedded `CharacterSetup.xml` (the list is `$charSetupSources` in `build.ps1`); the few remaining references are under `#if CHAR_SETUP`.
+
 | File | Responsibility |
 | --- | --- |
 | `Attachment.cs` | Attach to native Timeline and restore owned changes on detach |

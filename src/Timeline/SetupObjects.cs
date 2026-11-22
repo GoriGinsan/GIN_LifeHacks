@@ -23,7 +23,6 @@ namespace GinTimelineHack
     // own item number; an item whose mod is not installed is skipped, with its rows.
     public sealed partial class Plugin
     {
-        internal const string SetupObjectAttribute = "setupObject";
         const string BesidePoint = "beside";
         const string NodesConstraintsType = "NodesConstraints.NodesConstraints";
 

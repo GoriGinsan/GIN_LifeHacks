@@ -19,7 +19,7 @@ namespace GinTimelineHack
     public sealed partial class Plugin : BaseUnityPlugin
     {
         public const string Guid = "local.kkworkshop.0a52b20541f5.gin-timeline-life-hack";
-        public const string Version = "1.1.0";
+        public const string Version = "1.1.1";
         internal static Plugin Self;
         internal const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         internal const BindingFlags StaticFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;

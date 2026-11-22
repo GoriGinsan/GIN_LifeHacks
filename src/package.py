@@ -1,4 +1,8 @@
-"""Make runtime-only GIN LifeHacks ZIPs with stable installed file names."""
+"""Make runtime-only GIN LifeHacks ZIPs with stable installed file names.
+
+--edition public (default) packs the Timeline DLL built without Char Setup, for distribution;
+--edition private packs the author's own build and marks its ZIPs "_private".
+"""
 from pathlib import Path
 import argparse
 import hashlib
@@ -8,7 +12,9 @@ import zipfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, required=True)
+parser.add_argument('--edition', choices=('public', 'private'), default='public')
 args = parser.parse_args()
+private = args.edition == 'private'
 source = Path(__file__).resolve().parent
 parts = [('Timeline', 'GIN Timeline life hack.dll', 'GIN_Timeline_LifeHack'),
          ('Advanced', 'GIN Advance mode life hack.dll', 'GIN_Advance_Mode_LifeHack'),
@@ -16,6 +22,11 @@ parts = [('Timeline', 'GIN Timeline life hack.dll', 'GIN_Timeline_LifeHack'),
 files = []
 for folder, filename, archive_name in parts:
     entry = source / folder / 'bin' / filename
+    if folder == 'Timeline':   # the only plugin with two editions (build.ps1 -Edition)
+        if private:
+            archive_name += '_private'
+        else:
+            entry = source / folder / 'bin' / 'public' / filename
     if not entry.is_file():
         raise SystemExit(f'Build first: {entry}')
     plugin = (source / folder / 'Plugin.cs').read_text(encoding='utf-8-sig')
@@ -41,5 +52,5 @@ def pack(name, members):
 
 for item in files:
     pack(f'{item[3]}_v{item[2]}.zip', [item])
-pack(f'GIN_LifeHacks_v{files[0][2]}.zip', files)
+pack(f'GIN_LifeHacks_v{files[0][2]}{"_private" if private else ""}.zip', files)
 print(json.dumps(archives, indent=2))

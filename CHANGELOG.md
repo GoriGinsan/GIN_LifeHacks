@@ -1,5 +1,12 @@
 # Changes
 
+## v1.1.1 — Char Setup removed from the release
+
+Bundle: Timeline helper 1.1.1 + Advanced mode helper 1.1.0 + GIN Pad life hack 1.0.0 (both unchanged).
+
+- **Char Setup is no longer in the distributed Timeline helper:** on some installations it crashed the game. The release DLL has no `Char Setup` button and no embedded setup template; Auto Key, `+ Tracks`, the Advanced helper's `Timeline 0:00` buttons and GIN Pad's keys work as in 1.1.0. Rows, items and links that Char Setup already put into a scene are ordinary scene data and stay.
+- **Two editions from one source:** `build.ps1` builds the Timeline helper with Char Setup (`bin`, the author's private edition, compile symbol `CHAR_SETUP`) and without it (`bin/public`, the release edition); `-Edition Private` / `Public` builds one. `package.py` packs the release edition by default and the private one with `--edition private` (ZIPs marked `_private`).
+
 ## v1.1.0 — Animation workflow
 
 Bundle: Timeline helper 1.1.0 + Advanced mode helper 1.1.0 + GIN Pad life hack 1.0.0 (new). Scenes still contain only native Timeline, KKPE, Studio and Material Editor data.

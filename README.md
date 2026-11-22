@@ -1,6 +1,6 @@
 # GIN LifeHacks
 
-**[Download GIN LifeHacks v1.1.0 (installation ZIP)](https://github.com/GoriGinsan/GIN_LifeHacks/releases/download/v1.1.0/GIN_LifeHacks_v1.1.0.zip)**
+**[Download GIN LifeHacks v1.1.1 (installation ZIP)](https://github.com/GoriGinsan/GIN_LifeHacks/releases/download/v1.1.1/GIN_LifeHacks_v1.1.1.zip)**
 
 Animation workflow helpers for **Koikatsu CharaStudio**. Three independent BepInEx 5 plugins improve Timeline and KKPE Advanced mode and add a small posing and expression window (GIN Pad, the `IK QOL` button), while using the existing editing and scene data of Timeline, KKPE and Studio.
 
@@ -19,12 +19,14 @@ Checked on **2026-11-19**: the official latest pages identify **HSPlugins r2.25 
 
 Timeline helper 1.1.0, Advanced helper 1.1.0 and GIN Pad 1.0.0 were runtime-tested with Timeline 1.5.6 + KKPE 2.21.5 + ShalltyUtils 1.3.2 (the earlier 1.0.6 was also tested with ShalltyUtils 1.3.1; 1.3.1 was not re-run for 1.1.0). Future upstream releases require a fresh compatibility check; this page does not promise support for an unreleased or untested version. This is a Koikatsu build, not a Koikatsu Sunshine build.
 
+Timeline helper 1.1.1 is 1.1.0 without Char Setup, which crashed the game on some installations. It was compiled from the same source with Char Setup left out and was not run again in the game.
+
 ## Download and install
 
 Get the ZIP files from **[GIN LifeHacks Releases](https://github.com/GoriGinsan/GIN_LifeHacks/releases/latest)**:
 
-- `GIN_LifeHacks_v1.1.0.zip`: all three plugins.
-- `GIN_Timeline_LifeHack_v1.1.0.zip`: Timeline helper only.
+- `GIN_LifeHacks_v1.1.1.zip`: all three plugins.
+- `GIN_Timeline_LifeHack_v1.1.1.zip`: Timeline helper only (1.1.1: the 1.1.0 tools without Char Setup).
 - `GIN_Advance_Mode_LifeHack_v1.1.0.zip`: Advanced mode helper only.
 - `GIN_Pad_LifeHack_v1.0.0.zip`: GIN Pad (`IK QOL`) only.
 
@@ -63,7 +65,7 @@ In **F1 → GIN Timeline life hack → Input**, configure `AddKeyframe`, `UseCur
 
 Timeline helper 1.1.0, Advanced mode helper 1.1.0 and the new GIN Pad life hack 1.0.0 add:
 
-- **Char Setup** (Timeline toolbar): select one or more characters in the workspace and press it. It rebuilds the author's setup scene around each character (template `src/Timeline/CharacterSetup.xml`, generated from that scene by `src/tools/extract_character_setup.py`):
+- **Char Setup** (Timeline toolbar; **not in the distributed DLL** - it crashed the game on some installations, so the release ZIPs are built without it and it only exists in a private build from source, see [Development](#development-and-verification)): select one or more characters in the workspace and press it. It rebuilds the author's setup scene around each character (template `src/Timeline/CharacterSetup.xml`, generated from that scene by `src/tools/extract_character_setup.py`):
   - **Rows** with one key at 0:00 in the groups `R_FINGER`, `L_FINGER`, `MUNE_SHIRI`, `O_BODY_A` (one KKPE Blend Shape row per shape of `o_body_a`, in the scene's order, only when the body has Blend Shapes), `FACE`, `BODY` (now also KKPE rotation of `cf_d_shoulder_L` / `_R` and `cf_d_kokan`), the character's own position / rotation, and `STREAM`, `FOG`, `STRINGS` on the items below.
   - **Items with the scene's sizes**: three breath steams (size 0.584) on accessory point `a_n_headside`; on `a_n_dan` the anchor sphere (alpha 0) and a `STRINGS` folder with ten GIN MonaStream strings; on `a_n_kokan` a splash (size 0.001, Material Editor shader and properties), body mist and drifting fog; beside the character a sphere with seven hidden water streams, hidden through Material Editor.
   - **NodesConstraints:** the stream sphere follows the anchor sphere with the scene's position and rotation offset.
@@ -127,5 +129,7 @@ Source is in `src/`; start with the [source guide](docs/SOURCE.md) for the lifec
 .\src\build.ps1 -GamePath 'your Koikatsu game folder'
 python .\src\package.py --output dist
 ```
+
+The Timeline helper is built twice: `src/Timeline/bin` holds the private edition with Char Setup, `src/Timeline/bin/public` the edition for distribution without it (`-Edition Private` / `Public` builds one of them). `package.py` packs the public edition; `--edition private` packs the other one into ZIPs marked `_private`.
 
 No game assemblies, third-party plugins, character cards or curve presets are redistributed here. [Verification](docs/VERIFICATION.md) and [changes](CHANGELOG.md) describe the tested versions and limitations. Report problems through [Issues](https://github.com/GoriGinsan/GIN_LifeHacks/issues) with plugin versions, the affected operation and the relevant error text.

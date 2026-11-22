@@ -36,10 +36,12 @@ namespace GinTimelineHack
                 rightCandidates.Value = !rightCandidates.Value;
                 Config.Save();
             });
+#if CHAR_SETUP   // private edition only, see build.ps1 -Edition
             AddToolbarButton("Char Setup", ref x, 92, delegate
             {
                 SetupSelectedCharacters();
             });
+#endif
             AddAutoKeyControl(ref x);
             toolbarWidth = x;
             Put(toolbar, 330, -26, toolbarWidth, ToolbarHeight);

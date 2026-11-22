@@ -45,7 +45,11 @@ namespace GinTimelineHack
             int rows = Self.FaceRows(target, includeTongue).Count;
             if (rows == 0)
             {
+#if CHAR_SETUP
                 return "No face rows on this character - press Char Setup first";
+#else
+                return "No face rows on this character - add them to Timeline first";
+#endif
             }
 
             Self.RequestKeys(target, delegate (Interpolable row) { return row.owner == "KKPE" && IsFaceRow(row, includeTongue); }, "Face");

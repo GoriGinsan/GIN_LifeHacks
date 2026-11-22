@@ -1,5 +1,15 @@
 # Verification
 
+## v1.1.1, built 2026-11-22
+
+Timeline helper 1.1.1 is the 1.1.0 source compiled without Char Setup (`build.ps1` public edition). Checked: it compiles; the DLL contains none of the Char Setup code, the `Char Setup` button label or the embedded `CharacterSetup.xml`; Auto Key, track registration (`RegisterTracksFromXml`) and the Pad services (`KeyFaceRows`, `KeyNamedRows`) are present. It was **not run in the game** again. The Advanced helper and GIN Pad in the v1.1.1 ZIPs are the unchanged v1.1.0 binaries (byte-equal to the release assets of v1.1.0).
+
+| Runtime DLL | Plugin version | SHA256 |
+| --- | --- | --- |
+| GIN Timeline life hack.dll | 1.1.1 | `C0F7FBDD978AC5C75236F0B04CE6518B89C180F960C76A32BA24EC6A31421B1D` |
+| GIN Advance mode life hack.dll | 1.1.0 | `C278AC00C25B885CB3699CCF7F30E62AAF859542BB08F3F4A5FCC3AE5C101774` |
+| GIN Pad life hack.dll | 1.0.0 | `A545D4B7C488B94C154B7DACA4495434CBCE56C6A149C18C556763801F7B2BD8` |
+
 ## v1.1.0, checked 2026-11-19
 
 Timeline helper 1.1.0 + Advanced helper 1.1.0 + GIN Pad life hack 1.0.0, Koikatsu CharaStudio / Unity 5.6.2f1 / BepInEx 5.4.23.2 / Timeline 1.5.6 / KKPE 2.21.5 / ShalltyUtils 1.3.2, in the marked isolated test game with a vanilla character. Material Editor was added to that game for this run.

@@ -71,6 +71,8 @@ namespace GinTimelineHack
             public readonly List<Interpolable> Rows = new List<Interpolable>();   // in template order
         }
 
+        internal const string SetupObjectAttribute = "setupObject";
+
         Type nativeGroupType;
         MethodInfo treeAddGroup, treeAddLeaf, treeParentTo, treeGetLeaf;
 
