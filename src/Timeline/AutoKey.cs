@@ -14,6 +14,7 @@ namespace GinTimelineHack
     // While it is on and playback is stopped, moving something that already has a Timeline
     // row writes that row's key at the playhead: an existing key there is updated, otherwise
     // a key is added. Rows are never created; the S key keeps working as before.
+    // GIN Pad's Delay Key writes the rows of the body parts it edits a little later (KeyDelay.cs).
     // The toolbar control and the curve of added keys are in AutoKeyButton.cs.
     //
     // How a manual edit is recognised:
@@ -204,13 +205,17 @@ namespace GinTimelineHack
 
             int written = 0;
             float time = Native.playbackTime;
+            float smallestDelay = float.MaxValue, largestDelay = 0f;
             foreach (Interpolable row in autoKeyDue)
             {
                 autoKeyChangedFrame.Remove(row);
                 try
                 {
-                    WriteKey(row, time);
+                    float at = AutoKeyTime(row, time);   // later for a row the Pad delays (KeyDelay.cs)
+                    WriteKey(row, at);
                     written++;
+                    smallestDelay = Mathf.Min(smallestDelay, at - time);
+                    largestDelay = Mathf.Max(largestDelay, at - time);
                 }
                 catch (Exception e)
                 {
@@ -221,7 +226,7 @@ namespace GinTimelineHack
             if (written > 0)
             {
                 nextRefresh = 0;
-                Note("Auto Key: " + written + " row(s) at " + time.ToString("0.###") + " s");
+                Note("Auto Key: " + written + " row(s) at " + time.ToString("0.###") + " s" + DelaySpread(smallestDelay, largestDelay));
             }
         }
 

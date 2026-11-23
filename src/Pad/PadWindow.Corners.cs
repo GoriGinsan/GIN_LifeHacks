@@ -25,8 +25,8 @@ namespace GinPadHack
         const float KnobSize = 7f, KnobGrabSize = 14f;   // the knob as drawn, and the area that takes the mouse
         const float ReadoutWidth = 250f, ReadoutBigRow = 36f, ReadoutSmallRow = 26f, ReadoutTrack = 9f;
 
-        const float SecondsPerPixel = 1f / 600f;   // of the animation's length: 600 pixels cross it at Sens 1
-        const float MinSecondsPerPixel = 0.01f;
+        const float SecondsPerPixel = 1f / 2400f;  // of the animation's length: 2400 pixels cross it at Sens 1
+        const float MinSecondsPerPixel = 0.0025f;
         const float ReadoutSeconds = 1.5f;         // the readout stays this long after the release
 
         static readonly int KnobHint = "GinPadResizeKnob".GetHashCode();

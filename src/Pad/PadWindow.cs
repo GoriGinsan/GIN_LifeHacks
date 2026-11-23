@@ -82,6 +82,7 @@ namespace GinPadHack
             ReadOpenTabs(host.OpenItemTabs.Value, ItemTabNames, itemTabs);
             LoadPinned();
             LoadMap();
+            LoadDelays();
         }
 
         // A press that began on the window is still held.
@@ -218,6 +219,7 @@ namespace GinPadHack
             }
 
             DrawTimeReadout();   // over the contents while the time is dragged
+            DrawDelayReadout();  // ... or while a Delay Key delay is dragged
             GUI.DragWindow(new Rect(0, 0, 10000, PadUi.Px(22)));
         }
 
@@ -357,6 +359,7 @@ namespace GinPadHack
                 TickMap(held);
                 TickItems(held);
                 TickBody(held);
+                TickDelay(held);
                 TickCorners(held);
                 if (editPending && !held)
                 {

@@ -16,7 +16,7 @@ namespace GinPadHack
     {
         const string NeedsTimelineHack = "Keying needs GIN Timeline life hack 1.1.0 or later";
 
-        static MethodInfo keyFace, keyNamed, usage;
+        static MethodInfo keyFace, keyNamed, usage, notePadEdit;
         static bool found;
 
         static void Find()
@@ -37,6 +37,32 @@ namespace GinPadHack
             keyFace = timeline.GetMethod("KeyFaceRows", flags, null, new Type[] { typeof(ObjectCtrlInfo), typeof(bool) }, null);
             keyNamed = timeline.GetMethod("KeyNamedRows", flags, null, new Type[] { typeof(ObjectCtrlInfo), typeof(string) }, null);
             usage = timeline.GetMethod("FaceShapeUsage", flags, null, new Type[] { typeof(ObjectCtrlInfo) }, null);
+            notePadEdit = timeline.GetMethod("NotePadEdit", flags, null, new Type[] { typeof(ObjectCtrlInfo), typeof(string) }, null);
+        }
+
+        // GIN Timeline life hack 1.2.0 or later: keys can be written after the playhead (Delay Key).
+        internal static bool CanDelayKeys
+        {
+            get
+            {
+                Find();
+                return notePadEdit != null;
+            }
+        }
+
+        // Tell Auto Key that the Pad is editing these rows ("name=seconds"): their keys are written
+        // that many seconds after the playhead.
+        internal static void NotePadEdit(ObjectCtrlInfo owner, ICollection<string> delays)
+        {
+            Find();
+            if (notePadEdit == null || delays.Count == 0)
+            {
+                return;
+            }
+
+            string[] list = new string[delays.Count];
+            delays.CopyTo(list, 0);
+            notePadEdit.Invoke(null, new object[] { owner, string.Join(",", list) });
         }
 
         // Key the face rows (face, eyebrow and teeth Blend Shapes plus the pupils) at the playhead.
@@ -53,7 +79,8 @@ namespace GinPadHack
         }
 
         // Key every row of the object whose bone, guide object or renderer has one of these
-        // transform names. Returns a short status line.
+        // transform names; "name=seconds" keys that row later (Delay Key, Timeline helper 1.2.0).
+        // Returns a short status line.
         internal static string KeyNamed(ObjectCtrlInfo owner, ICollection<string> names)
         {
             Find();

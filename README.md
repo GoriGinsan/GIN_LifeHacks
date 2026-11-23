@@ -21,6 +21,14 @@ Timeline helper 1.1.0, Advanced helper 1.1.0 and GIN Pad 1.0.0 were runtime-test
 
 Timeline helper 1.1.1 is 1.1.0 without Char Setup, which crashed the game on some installations. It was compiled from the same source with Char Setup left out and was not run again in the game.
 
+## In the source, not yet released — Delay Key and smoother Pad drags
+
+The source on `main` is ahead of the v1.1.1 downloads: **GIN Pad life hack 1.1.0** and **Timeline helper 1.2.0** (Advanced helper 1.1.0 unchanged). They are built but have not been run in the game yet; build them with `src/build.ps1` until a release follows. See [CHANGELOG](CHANGELOG.md).
+
+- **Delay Key** (Pad, Body tab): every body part has its own key delay in seconds, without frame steps. With `Delay Key` on, Auto Key of the Pad's edits, `Key now` and a middle click write each part's key that long after the playhead, so a pose change starts at the hips and runs out through the body (left and right may differ, for example L.Shoulder 0.052 s after R.Shoulder). A key already at the delayed time is updated. Set the delays on the delay bar beside the figure or, with `Edit`, by dragging the figure's buttons up and down; a dragged part takes along the parts further from the origin (Ctrl + click sets the origin, Alt moves one part only). Only keys written from the Pad are delayed. Needs Timeline helper 1.2.0.
+- **Smoother drags:** Pad drags that hold the cursor now move the value in every frame, as Move Controller does.
+- **Time button:** a quarter of its former speed.
+
 ## Download and install
 
 Get the ZIP files from **[GIN LifeHacks Releases](https://github.com/GoriGinsan/GIN_LifeHacks/releases/latest)**:

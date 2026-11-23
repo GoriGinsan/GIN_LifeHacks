@@ -16,6 +16,7 @@ namespace GinPadHack
     //   Map     one graph that blends eye and mouth poses, the brows and the pupils  (PadWindow.Map.cs)
     //   Face    the Blend Shapes this scene uses as drag bars                       (PadWindow.Face.cs)
     //   Body    IK targets and the bones KKPE's small window lacks                  (PadWindow.Body.cs)
+    //           with Delay Key: keys of each part a little after the playhead       (PadWindow.Delay.cs)
     //   Shapes  the Blend Shapes of the body mesh
     // With items (or several objects) selected:
     //   Move    Move Controller's moves and turns, FK bone stepping with the wheel  (PadWindow.Items.cs)
@@ -38,7 +39,7 @@ namespace GinPadHack
     public sealed partial class Plugin : BaseUnityPlugin
     {
         public const string Guid = "local.kkworkshop.0a52b20541f5.gin-pad-life-hack";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
         const string ToolbarIconResource = "ToolbarIcon.png";
 
         internal const float DefaultSensitivity = 0.6f;
@@ -55,6 +56,8 @@ namespace GinPadHack
         internal ConfigEntry<ShapeList> FaceList;
         internal ConfigEntry<bool> LimitPupils;
         internal ConfigEntry<float> PupilLeftMinX, PupilLeftMaxX, PupilNoseDepth, PupilOuterDepth;
+        internal ConfigEntry<string> KeyDelays, DelayOrigin;
+        internal ConfigEntry<float> DelayRange;
 
         PadWindow window;
         PointerCatcher catcher;
@@ -108,6 +111,9 @@ namespace GinPadHack
             PupilLeftMaxX = Config.Bind("Face", "PupilLeftMaxX", 0.013f, "Highest local X of cf_J_hitomi_tx_L. The right pupil uses the mirrored range.");
             PupilNoseDepth = Config.Bind("Face", "PupilNoseSideDepth", -0.0015f, "Local Z of a pupil at its limit towards the nose.");
             PupilOuterDepth = Config.Bind("Face", "PupilOuterSideDepth", -0.0030f, "Local Z of a pupil at its outer limit. Z changes evenly in between.");
+            KeyDelays = Config.Bind("Body", "KeyDelays", "", "Delay Key: seconds after the playhead per body part (part=seconds, comma separated). Set on the Body tab's delay bar.");
+            DelayOrigin = Config.Bind("Body", "DelayOrigin", "cf_t_hips", "Delay Key: the part delays run out from. Dragging a part's delay takes along the parts further from it.");
+            DelayRange = Config.Bind("Body", "DelayBarSeconds", 0.5f, new ConfigDescription("Delay Key: how many seconds the delay bar shows (mouse wheel on the bar).", new AcceptableValueRange<float>(0.1f, 5f)));
             FollowChangedDefaults();
         }
 

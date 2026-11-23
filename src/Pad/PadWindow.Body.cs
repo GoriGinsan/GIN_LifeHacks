@@ -23,6 +23,7 @@ namespace GinPadHack
     //   right drag on a grey button    move the IK target up and down
     //   bars                           add to one axis; right click a bone's bar removes that override
     //   Key now, middle click a bar    key the selection in the Timeline at the playhead
+    //                                  (with Delay Key: each part later by its delay, PadWindow.Delay.cs)
     //   Ctrl + Z / Shift + Z           Studio's Undo / Redo: each press on the tab is one step
     //                                  (drags, bars, resets, limb copies; see PoseUndo.cs)
     //
@@ -176,6 +177,7 @@ namespace GinPadHack
                 RememberPose(target);
             }
 
+            GUILayout.BeginHorizontal();
             GUILayout.BeginVertical(PadUi.Width(FigureWidth));
             DrawFigureAndBars(target);
             GUILayout.EndVertical();
@@ -183,11 +185,20 @@ namespace GinPadHack
             {
                 bodyArea = GUILayoutUtility.GetLastRect();
             }
+
+            GUILayout.Space(PadUi.Px(4f));
+            DrawDelayPanel(target);
+            GUILayout.EndHorizontal();
         }
 
         void DrawFigureAndBars(PadTarget target)
         {
             Rect area = GUILayoutUtility.GetRect(PadUi.Px(FigureWidth), PadUi.Px(FigureRows * Pitch), GUILayout.ExpandWidth(false));
+            if (Event.current.type == EventType.Repaint)
+            {
+                delayHoverFigure = null;   // the part under the pointer lights its mark on the delay bar
+            }
+
             foreach (BodyPart part in BodyParts)
             {
                 Rect place = new Rect(
@@ -195,7 +206,14 @@ namespace GinPadHack
                     area.y + PadUi.Px(part.Place.y),
                     PadUi.Px(part.Place.width),
                     PadUi.Px(part.Place.height));
-                PartButton(place, target, part);
+                if (delayEdit)
+                {
+                    DelayPartButton(place, target, part);   // Edit: the buttons set delays
+                }
+                else
+                {
+                    PartButton(place, target, part);
+                }
             }
 
             // KKPE's own limb functions, then the tools for the selection.
@@ -270,6 +288,16 @@ namespace GinPadHack
         {
             int id = GUIUtility.GetControlID(PartHint, FocusType.Passive, place);
             Event current = Event.current;
+            Vector2 moved;
+            if (PadUi.TakeHeldMovement(id, current.delta, out moved))   // once per frame, beyond the screen edge
+            {
+                pressDragged = true;
+                if (selection.Contains(part))
+                {
+                    DragSelection(target, part, moved * (PadUi.Fine(current) ? PadUi.FineFactor : 1f) * PadUi.Sensitivity, pressButton == 1);
+                }
+            }
+
             switch (current.GetTypeForControl(id))
             {
                 case EventType.MouseDown:
@@ -297,20 +325,6 @@ namespace GinPadHack
                     }
 
                     break;
-                case EventType.MouseDrag:
-                    if (GUIUtility.hotControl == id)
-                    {
-                        pressDragged = true;
-                        Vector2 moved = EndlessDrag.Moved(current.delta);   // goes on beyond the screen edge
-                        if (selection.Contains(part))
-                        {
-                            DragSelection(target, part, moved * (current.shift ? PadUi.FineFactor : 1f) * PadUi.Sensitivity, pressButton == 1);
-                        }
-
-                        current.Use();
-                    }
-
-                    break;
                 case EventType.MouseUp:
                     if (GUIUtility.hotControl == id)
                     {
@@ -329,6 +343,11 @@ namespace GinPadHack
 
                     break;
                 case EventType.Repaint:
+                    if (place.Contains(current.mousePosition))
+                    {
+                        delayHoverFigure = part;
+                    }
+
                     Color previous = GUI.color;
                     if (!Usable(target, part))
                     {
@@ -441,16 +460,23 @@ namespace GinPadHack
         // Every selected part receives the SAME movement or turn in world space, never a mirrored
         // one: with both shoulders selected, dragging left moves both of them left on screen.
 
-        // Key the Timeline rows of the selected parts (IK targets, FK nodes and KKPE bones) at the playhead.
+        // Key the Timeline rows of the selected parts (IK targets, FK nodes and KKPE bones) at the
+        // playhead; with Delay Key on, each part that many seconds later.
         void KeyBodySelection(PadTarget target)
         {
+            if (delayKeyOn && TimelineBridge.CanDelayKeys)
+            {
+                Status(TimelineBridge.KeyNamed(target.Character, DelayedNames(target, shownSelection)));
+                return;
+            }
+
             List<string> names = new List<string>();
             foreach (BodyPart part in shownSelection)
             {
-                Transform transform = part.Via == Via.Ik ? target.IkTarget(part.Name).guideObject.transformTarget : target.Bone(part.Name);
-                if (transform != null)
+                string name = RowName(target, part);
+                if (name != null)
                 {
-                    names.Add(transform.name);
+                    names.Add(name);
                 }
             }
 
@@ -583,7 +609,7 @@ namespace GinPadHack
                 MoveIkTargets(target, selection, (right * pixels.x - away * pixels.y) * DragMovePerPixel);
             }
 
-            Edited();
+            BodyEdited(target, selection);
         }
 
         // A direction laid on the floor plane; the fallback is used when it points straight up or down.
@@ -607,7 +633,7 @@ namespace GinPadHack
             if (move != Vector3.zero)
             {
                 MoveIkTargets(target, shownSelection, frame.TransformVector(move));
-                Edited();
+                BodyEdited(target, shownSelection);
             }
 
             if (!primary.enableRot)
@@ -620,7 +646,7 @@ namespace GinPadHack
             if (turn != Vector3.zero)
             {
                 TurnIkTargets(target, shownSelection, WorldTurn(frame.rotation, Quaternion.Euler(primary.changeAmount.rot), turn));
-                Edited();
+                BodyEdited(target, shownSelection);
             }
         }
 
@@ -639,7 +665,7 @@ namespace GinPadHack
                 else if (turn != Vector3.zero)
                 {
                     TurnBones(target, shownSelection, WorldTurn(primary.parent.rotation, rotation, turn), false);
-                    Edited();
+                    BodyEdited(target, shownSelection);
                 }
             }
 
@@ -653,7 +679,7 @@ namespace GinPadHack
                 else if (move != Vector3.zero)
                 {
                     MoveBones(target, shownSelection, primary.parent.TransformVector(move));
-                    Edited();
+                    BodyEdited(target, shownSelection);
                 }
             }
 
@@ -690,7 +716,7 @@ namespace GinPadHack
                         }
                     }
 
-                    Edited();
+                    BodyEdited(target, shownSelection);
                 }
             }
         }
@@ -725,7 +751,7 @@ namespace GinPadHack
                 }
             }
 
-            Edited();
+            BodyEdited(target, parts);
         }
 
         // A title and three coloured bars "X Y Z" showing the values. Returns what to add on each axis.
@@ -765,7 +791,7 @@ namespace GinPadHack
                 }
             }
 
-            Edited();
+            BodyEdited(target, selection);
             Status("KKPE overrides removed from " + count + " bone(s)");
         }
 
@@ -845,6 +871,11 @@ namespace GinPadHack
                 default:
                     done = Kkpe.CallPose(target, "SwapPose");
                     break;
+            }
+
+            if (done)
+            {
+                AllPartsEdited(target);
             }
 
             Status(done ? LimbLabels[action] + ": done by KKPE" : "This KKPE version has no " + LimbLabels[action]);

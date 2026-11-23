@@ -26,6 +26,7 @@ namespace GinTimelineHack
         ObjectCtrlInfo faceKeyTarget;
         Predicate<Interpolable> faceKeyRows;
         string faceKeyWhat;
+        Dictionary<string, float> faceKeyDelays;
         int faceKeyFrame;
 
         // Write a key at the playhead on every face row of the target, two frames from now.
@@ -58,6 +59,8 @@ namespace GinTimelineHack
 
         // Write a key at the playhead on every row of the target whose bone, guide object or
         // renderer has one of these names (comma separated), two frames from now.
+        // A name may carry a delay, "cf_t_shoulder_L(work)=0.105": that row's key is written that
+        // many seconds after the playhead (GIN Pad's Delay Key, see KeyDelay.cs).
         public static string KeyNamedRows(ObjectCtrlInfo target, string names)
         {
             if (Self == null || !Self.attached)
@@ -70,31 +73,36 @@ namespace GinTimelineHack
                 return "Stop playback before keying";
             }
 
-            List<string> wanted = new List<string>();
-            foreach (string name in names.Split(','))
-            {
-                if (name.Trim().Length > 0)
-                {
-                    wanted.Add(name.Trim());
-                }
-            }
-
-            Predicate<Interpolable> named = delegate (Interpolable row) { return wanted.Contains(RowLeaf(row)); };
+            Dictionary<string, float> wanted = ParseDelays(names);
+            Predicate<Interpolable> named = delegate (Interpolable row) { return wanted.ContainsKey(RowLeaf(row)); };
             int rows = RowsOf(target, named).Count;
             if (rows == 0)
             {
                 return "No Timeline rows for " + names;
             }
 
-            Self.RequestKeys(target, named, "Rows");
-            return "Keyed: " + rows + " rows at " + Native.playbackTime.ToString("0.###") + " s";
+            bool delayed = false;
+            foreach (float delay in wanted.Values)
+            {
+                delayed |= delay > 0f;
+            }
+
+            Self.RequestKeys(target, named, "Rows", delayed ? wanted : null);
+            return "Keyed: " + rows + " rows at " + Native.playbackTime.ToString("0.###") + " s" + (delayed ? " (delayed)" : "");
         }
 
         void RequestKeys(ObjectCtrlInfo target, Predicate<Interpolable> rows, string what)
         {
+            RequestKeys(target, rows, what, null);
+        }
+
+        // delays: seconds after the playhead per row name; null keys every row at the playhead.
+        void RequestKeys(ObjectCtrlInfo target, Predicate<Interpolable> rows, string what, Dictionary<string, float> delays)
+        {
             faceKeyTarget = target;
             faceKeyRows = rows;
             faceKeyWhat = what;
+            faceKeyDelays = delays;
             faceKeyFrame = Time.frameCount + FaceKeyDelayFrames;
         }
 
@@ -145,12 +153,17 @@ namespace GinTimelineHack
 
             int written = 0;
             float time = Native.playbackTime;
+            float smallestDelay = float.MaxValue, largestDelay = 0f;
             foreach (Interpolable row in RowsOf(target, faceKeyRows))
             {
                 try
                 {
-                    WriteKey(row, time);
+                    float delay;
+                    float at = faceKeyDelays != null && faceKeyDelays.TryGetValue(RowLeaf(row), out delay) ? DelayedTime(time, delay) : time;
+                    WriteKey(row, at);
                     written++;
+                    smallestDelay = Mathf.Min(smallestDelay, at - time);
+                    largestDelay = Mathf.Max(largestDelay, at - time);
                 }
                 catch (Exception e)
                 {
@@ -161,7 +174,7 @@ namespace GinTimelineHack
             // These keys are not a new manual edit for Auto Key.
             autoKeyBaselineStale = true;
             nextRefresh = 0;
-            Note(faceKeyWhat + " keyed: " + written + " rows at " + time.ToString("0.###") + " s");
+            Note(faceKeyWhat + " keyed: " + written + " rows at " + time.ToString("0.###") + " s" + DelaySpread(smallestDelay, largestDelay));
         }
 
         List<Interpolable> FaceRows(ObjectCtrlInfo target, bool includeTongue)

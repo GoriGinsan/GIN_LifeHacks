@@ -1,5 +1,22 @@
 # Changes
 
+## Unreleased — Delay Key, smoother Pad drags
+
+Timeline helper 1.2.0 + GIN Pad life hack 1.1.0 (Advanced mode helper 1.1.0 unchanged). Built; not yet run in the game.
+
+GIN Pad life hack 1.1.0
+
+- **Delay Key** (Body tab): every body part has its own delay in seconds (no frame steps; L.Shoulder can come 0.052 s after R.Shoulder). With `Delay Key` on, Auto Key of the Pad's own edits, `Key now` and a middle click write each part's key that long after the playhead, so a pose change starts at the hips and runs out through the body. Keys written any other way stay at the playhead. A key already at the delayed time is updated; keys in between are left alone; a time past the animation's end is moved to the end.
+- **Delay bar** beside the figure: a small timeline standing up (playhead at the top). Every part is a mark at its delay, the right side's parts on the left as on the figure. Drag a mark for its delay; drag between marks to stretch or shrink all delays; wheel: how many seconds the bar shows (0.1 to 5); right click a mark: 0, between marks: fit; double click: type the delay. Hovering a figure button lights its mark.
+- **Edit** shows each part's delay on the figure's buttons and sets it there: drag up / down, Ctrl + click sets the origin (★), right click 0, double click to type. Dragging a part takes along every part further from the origin (dragging R.Shoulder moves R.Elbow and R.Hand); Alt moves only the part. Shift is four times finer and `Sens` applies, as everywhere in the Pad. While dragging, a large readout shows the delay, the difference to the other side's part (or the part towards the origin) and the key's time.
+- Delays, the origin and the bar's length are remembered (`Body` settings); Delay Key itself is off after every Studio start. `Clear` (Ctrl + click) sets every delay to 0.
+- **Smoother drags:** once a drag holds the cursor, its movement is applied once in every frame, as Move Controller does. Before, the value moved only in frames in which Windows sent a drag event, and with the parked cursor and a steadily moving mouse it often sent none, so bars, Body drags, the Move tab and the time button moved in steps.
+- **Time button:** a quarter of its former speed (2400 pixels cross the animation at `Sens` 1, at least 0.0025 s per pixel).
+
+Timeline helper 1.2.0
+
+- Writes the Pad's delayed keys: `NotePadEdit` tells Auto Key which transforms the Pad is editing and their delays (trusted for one second), and `KeyNamedRows` accepts `name=seconds`. The status line shows the delays used.
+
 ## v1.1.1 — Char Setup removed from the release
 
 Bundle: Timeline helper 1.1.1 + Advanced mode helper 1.1.0 + GIN Pad life hack 1.0.0 (both unchanged).

@@ -37,6 +37,7 @@ namespace GinPadHack
         static readonly Color BoneIdle = new Color(0.16f, 0.36f, 0.33f, 1f);
         static readonly Color PinLit = new Color(0.95f, 0.78f, 0.25f, 1f);
         static readonly Color MarkerLit = new Color(1f, 0.72f, 0.2f, 1f);
+        static readonly Color DelayOn = new Color(0.45f, 0.22f, 0.85f, 1f);
 
         // Axis colours of the Body tab bars: X red, Y green, Z blue.
         internal static readonly Color[] AxisColors =
@@ -51,6 +52,7 @@ namespace GinPadHack
         internal static GUIStyle Window, Button, PartButton, BoneButton, PinOff, PinOn, Small, Heading, BarBox, BarLabel, BarValue;
         internal static GUIStyle AxisBarBox, AxisTitle, Marker, MarkerOn, SmallBoneButton, CenterLabel, DragBox;
         internal static GUIStyle CornerButton, BigTime, TimeChange, TimeDetail;
+        internal static GUIStyle DelayKeyButton, DelayGridLabel, DelayRangeLabel, DelayMarkLabel, DelayMarkLabelRight, DelayHint, DelayTyping, DelayVersus;
         internal static Texture2D TriangleDown, TriangleRight, Disc;
 
         static readonly int BarHint = "GinPadBar".GetHashCode();
@@ -60,7 +62,7 @@ namespace GinPadHack
         static float lastMouseY;
         static int clickButton, dragButton;
         static bool dragMoved, keyRequested;
-        static Texture2D idleTexture, hoverTexture, accentTexture, pinTexture, boneTexture, markerTexture;
+        static Texture2D idleTexture, hoverTexture, accentTexture, pinTexture, boneTexture, markerTexture, delayOnTexture;
         static float scale = 1f, builtScale;
         static float lastMouseX;
 
@@ -119,7 +121,7 @@ namespace GinPadHack
         // knob changes it on every drag event). The textures are made once.
         internal static void EnsureStyles(float uiScale)
         {
-            if (Button != null && idleTexture != null && CenterLabel != null && builtScale == uiScale)
+            if (delayOnTexture != null && Button != null && idleTexture != null && DelayVersus != null && builtScale == uiScale)
             {
                 return;
             }
@@ -136,6 +138,11 @@ namespace GinPadHack
                 TriangleDown = Triangle(false);
                 TriangleRight = Triangle(true);
                 Disc = MakeDisc();
+            }
+
+            if (delayOnTexture == null)
+            {
+                delayOnTexture = Solid(DelayOn);
             }
 
             Window = new GUIStyle();
@@ -241,6 +248,39 @@ namespace GinPadHack
             TimeDetail.fontSize = Mathf.RoundToInt(12f * scale);
             TimeDetail.alignment = TextAnchor.MiddleRight;
             TimeDetail.normal.textColor = new Color(0.78f, 0.82f, 0.90f, 1f);
+
+            // The Body tab's Delay Key panel (PadWindow.Delay.cs).
+            DelayKeyButton = new GUIStyle(Button);
+            DelayKeyButton.fixedHeight = Px(38f);
+            DelayKeyButton.fontSize = Mathf.RoundToInt(12f * scale);
+            DelayKeyButton.fontStyle = FontStyle.Bold;
+            DelayKeyButton.onNormal.background = DelayKeyButton.onHover.background = DelayKeyButton.onActive.background = delayOnTexture;
+            DelayGridLabel = new GUIStyle(Small);
+            DelayGridLabel.fontSize = Mathf.RoundToInt(8f * scale);
+            DelayGridLabel.padding = new RectOffset(1, 1, 0, 0);
+            DelayGridLabel.margin = new RectOffset(0, 0, 0, 0);
+            DelayGridLabel.alignment = TextAnchor.LowerLeft;
+            DelayGridLabel.normal.textColor = new Color(1f, 1f, 1f, 0.7f);
+            DelayRangeLabel = new GUIStyle(DelayGridLabel);
+            DelayRangeLabel.alignment = TextAnchor.LowerRight;
+            DelayRangeLabel.fontStyle = FontStyle.Bold;
+            DelayRangeLabel.normal.textColor = Color.white;
+            DelayMarkLabel = new GUIStyle(Small);
+            DelayMarkLabel.fontSize = Mathf.RoundToInt(10f * scale);
+            DelayMarkLabel.margin = new RectOffset(0, 0, 0, 0);
+            DelayMarkLabel.alignment = TextAnchor.MiddleLeft;
+            DelayMarkLabel.clipping = TextClipping.Overflow;
+            DelayMarkLabelRight = new GUIStyle(DelayMarkLabel);
+            DelayMarkLabelRight.alignment = TextAnchor.MiddleRight;
+            DelayHint = new GUIStyle(Small);
+            DelayHint.fontSize = Mathf.RoundToInt(10f * scale);
+            DelayHint.alignment = TextAnchor.MiddleCenter;
+            DelayHint.normal.textColor = new Color(0.78f, 0.82f, 0.90f, 1f);
+            DelayTyping = new GUIStyle(GUI.skin.textField);
+            DelayTyping.fontSize = Mathf.RoundToInt(11f * scale);
+            DelayTyping.alignment = TextAnchor.MiddleCenter;
+            DelayVersus = new GUIStyle(TimeDetail);
+            DelayVersus.alignment = TextAnchor.MiddleLeft;
         }
 
         // A white disc on a transparent square (the resize knob).
@@ -455,6 +495,54 @@ namespace GinPadHack
             return Mathf.Clamp(value + pixels / travel * range, 0f, range);
         }
 
+        // ---- held drags: one step per frame ---------------------------------------------------
+        //
+        // Until EndlessDrag holds the cursor, a held control moves by each drag event's own
+        // movement. Once it holds (the cursor hidden and parked in the middle of the screen), the
+        // movement is the mouse's own and is taken once per frame, in the Repaint pass: the value
+        // then changes in every frame, as Move Controller's do. Before, it changed only in frames
+        // in which Windows sent a drag event, and with the cursor parked and the mouse moving
+        // steadily it often sent none: the value stood still and then jumped. Drag events are only
+        // used up while the cursor is held.
+
+        // The movement the control "id" takes in this event, in GUI pixels (y down); false when it
+        // takes none. "eventMovement": what this drag event itself reports.
+        internal static bool TakeHeldMovement(int id, Vector2 eventMovement, out Vector2 moved)
+        {
+            moved = Vector2.zero;
+            if (GUIUtility.hotControl != id)
+            {
+                return false;
+            }
+
+            Event current = Event.current;
+            EventType type = current.GetTypeForControl(id);
+            if (type == EventType.MouseDrag)
+            {
+                if (!EndlessDrag.Holding)
+                {
+                    moved = EndlessDrag.Moved(eventMovement);   // the first real movement starts holding
+                }
+
+                current.Use();
+                return moved != Vector2.zero;
+            }
+
+            if (type == EventType.Repaint && EndlessDrag.Holding)
+            {
+                moved = EndlessDrag.Moved(Vector2.zero);
+                return moved != Vector2.zero;
+            }
+
+            return false;
+        }
+
+        // Shift for fine steps; read from the keyboard too, because a Repaint pass may not carry it.
+        internal static bool Fine(Event current)
+        {
+            return current.shift || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        }
+
         // ---- drag bars -----------------------------------------------------------------------
 
         // Bar for a value with a fixed range. Dragging across one bar width covers the whole range
@@ -524,6 +612,18 @@ namespace GinPadHack
             reset = false;
             int id = GUIUtility.GetControlID(BarHint, FocusType.Passive, rect);
             Event current = Event.current;
+            bool dragEvent = current.GetTypeForControl(id) == EventType.MouseDrag && GUIUtility.hotControl == id;
+            Vector2 moved;
+            if (TakeHeldMovement(id, new Vector2(current.mousePosition.x - lastMouseX, 0f), out moved))
+            {
+                pixels = moved.x * (Fine(current) ? FineFactor : 1f);
+            }
+
+            if (dragEvent)
+            {
+                lastMouseX = current.mousePosition.x;
+            }
+
             switch (current.GetTypeForControl(id))
             {
                 case EventType.MouseDown:
@@ -550,15 +650,6 @@ namespace GinPadHack
                     }
 
                     break;
-                case EventType.MouseDrag:
-                    if (GUIUtility.hotControl == id)
-                    {
-                        pixels = EndlessDrag.Moved(new Vector2(current.mousePosition.x - lastMouseX, 0f)).x * (current.shift ? FineFactor : 1f);
-                        lastMouseX = current.mousePosition.x;
-                        current.Use();
-                    }
-
-                    break;
                 case EventType.MouseUp:
                     if (GUIUtility.hotControl == id)
                     {
@@ -576,15 +667,24 @@ namespace GinPadHack
         // ---- drag buttons (the item Move tab) ---------------------------------------------------
 
         // A coloured button that is pressed with the left or right mouse button and dragged.
-        // "pixels" is the mouse movement of this event while held (Shift: finer; beyond the screen
-        // edge too), "button" the mouse button that holds it. A press released without moving is
-        // a click.
+        // "pixels" is the mouse movement while held (Shift: finer; beyond the screen edge too; once
+        // per frame, see TakeHeldMovement), "button" the mouse button that holds it. A press
+        // released without moving is a click.
         internal static Press DragButton(Rect rect, string label, Color color, out Vector2 pixels, out int button)
         {
             pixels = Vector2.zero;
             button = dragButton;
             int id = GUIUtility.GetControlID(DragButtonHint, FocusType.Passive, rect);
             Event current = Event.current;
+            Press result = Press.None;
+            Vector2 moved;
+            if (TakeHeldMovement(id, current.delta, out moved))
+            {
+                pixels = moved * (Fine(current) ? FineFactor : 1f) * Sensitivity;
+                dragMoved = true;
+                result = Press.Dragged;
+            }
+
             switch (current.GetTypeForControl(id))
             {
                 case EventType.MouseDown:
@@ -595,17 +695,6 @@ namespace GinPadHack
                         dragMoved = false;
                         current.Use();
                         return Press.Down;
-                    }
-
-                    break;
-                case EventType.MouseDrag:
-                    if (GUIUtility.hotControl == id)
-                    {
-                        Vector2 moved = EndlessDrag.Moved(current.delta);
-                        pixels = moved * (current.shift ? FineFactor : 1f) * Sensitivity;
-                        dragMoved |= moved != Vector2.zero;
-                        current.Use();
-                        return Press.Dragged;
                     }
 
                     break;
@@ -627,7 +716,7 @@ namespace GinPadHack
                     break;
             }
 
-            return Press.None;
+            return result;
         }
 
         internal static Press DragButton(string label, Color color, float width, float height, out Vector2 pixels, out int button)
