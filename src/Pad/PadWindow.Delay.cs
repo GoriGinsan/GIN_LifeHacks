@@ -15,7 +15,9 @@ namespace GinPadHack
     // middle click on the Body tab. Keys written in any other way stay at the playhead.
     // GIN Timeline life hack 1.2.0 writes the keys (KeyDelay.cs there).
     //
-    // The panel right of the figure:
+    // The panel right of the figure is narrow, so that the window is no wider than without it:
+    // a slim bar, Delay Key and Edit. In Edit mode it is about three times as wide as before
+    // (the marks then stand apart, with the bar's seconds and Clear).
     //   the bar          a small timeline standing up: the playhead at the top, later downwards.
     //                    Every part is a mark at the height of its delay; the right side's parts
     //                    on the left, as on the figure. Drag a mark: that part's delay.
@@ -37,7 +39,8 @@ namespace GinPadHack
     // Shift is four times finer, "Sens" scales the speed as everywhere in the Pad.
     public sealed partial class PadWindow
     {
-        const float DelayPanelWidth = 66f;
+        const float CompactPanelWidth = 36f, CompactBarWidth = 14f;   // fits beside the figure under the header
+        const float EditPanelWidth = 198f;                            // Edit mode: three times the first panel
         const float DelayMarkWidth = 14f, DelayMarkHeight = 5f, DelayGrab = 7f;
         const float MinDelayRange = 0.1f, MaxDelayRange = 5f, DefaultDelayRange = 0.5f;
         const float DelayReadoutSeconds = 1.5f;
@@ -86,6 +89,7 @@ namespace GinPadHack
         string delayOrigin = DefaultDelayOrigin;
         float delayRange = DefaultDelayRange;   // seconds from the top of the bar to its bottom
         bool delayKeyOn, delayEdit;
+        bool delayEditShown;                    // Edit as the current GUI pass lays it out (adopted in Layout)
         bool delaysChanged;                     // written to the settings on release
 
         // The drag in progress: a part (with or without the parts beyond it), or the whole bar.
@@ -500,10 +504,27 @@ namespace GinPadHack
 
         // ---- the panel right of the figure -------------------------------------------------------
 
+        // Layout pass, before the figure: whether this pass draws the Edit layout.
+        void AdoptDelayEdit()
+        {
+            if (Event.current.type == EventType.Layout)
+            {
+                delayEditShown = delayEdit;
+            }
+        }
+
         void DrawDelayPanel(PadTarget target)
         {
-            GUILayout.BeginVertical(PadUi.Width(DelayPanelWidth));
-            Rect bar = GUILayoutUtility.GetRect(PadUi.Px(DelayPanelWidth), PadUi.Px(FigureRows * Pitch), GUILayout.ExpandWidth(false));
+            float width = delayEditShown ? EditPanelWidth : CompactPanelWidth;
+            GUILayout.BeginVertical(PadUi.Width(width));
+            Rect column = GUILayoutUtility.GetRect(PadUi.Px(width), PadUi.Px(FigureRows * Pitch), GUILayout.ExpandWidth(false));
+            Rect bar = column;
+            if (!delayEditShown)
+            {
+                // The slim bar in the middle of the narrow column.
+                bar = new Rect(Mathf.Round(column.center.x - PadUi.Px(CompactBarWidth) * 0.5f), column.y, PadUi.Px(CompactBarWidth), column.height);
+            }
+
             if (Event.current.type == EventType.Repaint)
             {
                 delayBar = bar;
@@ -511,34 +532,10 @@ namespace GinPadHack
 
             DelayBar(bar);
 
-            Rect typing = GUILayoutUtility.GetRect(PadUi.Px(DelayPanelWidth), PadUi.Px(18f), GUILayout.ExpandWidth(false));
+            Rect typing = GUILayoutUtility.GetRect(PadUi.Px(width), PadUi.Px(18f), GUILayout.ExpandWidth(false));
             DelayTypingField(typing);
 
-            bool edit = PadUi.Toggle(delayEdit, "Edit", PadUi.Width(DelayPanelWidth));
-            if (edit != delayEdit)
-            {
-                delayEdit = edit;
-                delayTyping = null;
-                Status(edit
-                    ? "Delay Edit: drag a part up / down (Alt: only that part), Ctrl + click: origin ★, right click: 0, double click: type"
-                    : "Delay Edit off: the figure poses again");
-            }
-
-            if (GUILayout.Button("Clear", PadUi.Button, PadUi.Width(DelayPanelWidth)))
-            {
-                if (Event.current.control)
-                {
-                    delays.Clear();
-                    delaysChanged = true;
-                    Status("Every delay is 0");
-                }
-                else
-                {
-                    Status("Ctrl + click Clear sets every delay to 0");
-                }
-            }
-
-            bool on = GUILayout.Toggle(delayKeyOn, "Delay\nKey", PadUi.DelayKeyButton, PadUi.Width(DelayPanelWidth));
+            bool on = GUILayout.Toggle(delayKeyOn, "Delay\nKey", PadUi.DelayKeyButton, PadUi.Width(width));
             if (on != delayKeyOn)
             {
                 delayKeyOn = on;
@@ -549,6 +546,30 @@ namespace GinPadHack
                 else
                 {
                     Status(on ? "Delay Key on: the Pad's body keys are written later by each part's delay" : "Delay Key off: body keys at the playhead");
+                }
+            }
+
+            bool edit = PadUi.Toggle(delayEdit, "Edit", PadUi.Width(width));
+            if (edit != delayEdit)
+            {
+                delayEdit = edit;
+                delayTyping = null;
+                Status(edit
+                    ? "Delay Edit: drag a part up / down (Alt: only that part), Ctrl + click: origin ★, right click: 0, double click: type"
+                    : "Delay Edit off: the figure poses again");
+            }
+
+            if (delayEditShown && GUILayout.Button("Clear", PadUi.Button, PadUi.Width(width)))
+            {
+                if (Event.current.control)
+                {
+                    delays.Clear();
+                    delaysChanged = true;
+                    Status("Every delay is 0");
+                }
+                else
+                {
+                    Status("Ctrl + click Clear sets every delay to 0");
                 }
             }
 
@@ -637,12 +658,19 @@ namespace GinPadHack
         }
 
         // Where a part's mark is on the bar.
+        // On the slim bar every mark spans the bar; on the wide one each part has its own lane,
+        // placed as on the figure.
         Rect MarkRect(Rect bar, BodyPart part)
         {
+            float y = bar.y + Mathf.Clamp01(Delay(part) / delayRange) * (bar.height - PadUi.Px(DelayMarkHeight));
+            if (!delayEditShown)
+            {
+                return new Rect(bar.x + 1f, y, bar.width - 2f, PadUi.Px(DelayMarkHeight));
+            }
+
             float lane = (part.Place.x + part.Place.width * 0.5f) / FigureWidth;
             float inset = PadUi.Px(DelayMarkWidth * 0.5f + 2f);
             float x = bar.x + inset + lane * (bar.width - inset * 2f);
-            float y = bar.y + Mathf.Clamp01(Delay(part) / delayRange) * (bar.height - PadUi.Px(DelayMarkHeight));
             return new Rect(x - PadUi.Px(DelayMarkWidth) * 0.5f, y, PadUi.Px(DelayMarkWidth), PadUi.Px(DelayMarkHeight));
         }
 
@@ -687,10 +715,16 @@ namespace GinPadHack
             {
                 float y = Mathf.Round(bar.y + seconds / delayRange * (bar.height - PadUi.Px(DelayMarkHeight)) + PadUi.Px(DelayMarkHeight) * 0.5f);
                 PadUi.Fill(new Rect(bar.x, y, bar.width, 1f), DelayGrid);
-                GUI.Label(new Rect(bar.x + 1f, y - PadUi.Px(11f), bar.width, PadUi.Px(11f)), seconds.ToString(step < 0.1f ? "0.00" : "0.0"), PadUi.DelayGridLabel);
+                if (delayEditShown)
+                {
+                    GUI.Label(new Rect(bar.x + 1f, y - PadUi.Px(11f), bar.width, PadUi.Px(11f)), seconds.ToString(step < 0.1f ? "0.00" : "0.0"), PadUi.DelayGridLabel);
+                }
             }
 
-            GUI.Label(new Rect(bar.x, bar.yMax - PadUi.Px(12f), bar.width - 2f, PadUi.Px(12f)), delayRange.ToString("0.00") + " s", PadUi.DelayRangeLabel);
+            if (delayEditShown)
+            {
+                GUI.Label(new Rect(bar.x, bar.yMax - PadUi.Px(12f), bar.width - 2f, PadUi.Px(12f)), delayRange.ToString("0.00") + " s", PadUi.DelayRangeLabel);
+            }
             PadUi.Fill(new Rect(bar.x, bar.y, bar.width, 2f), Color.white);   // the playhead
 
             // Marks: small ones first, so the big parts are drawn on top; the lit one last.
@@ -730,7 +764,7 @@ namespace GinPadHack
             {
                 // The name beside the mark, on the side with room.
                 float width = PadUi.Px(70f);
-                bool left = mark.center.x > bar.center.x;
+                bool left = !delayEditShown || mark.center.x > bar.center.x;   // the slim bar: over the figure
                 Rect label = new Rect(left ? mark.x - width - 2f : mark.xMax + 2f, mark.center.y - PadUi.Px(7f), width, PadUi.Px(14f));
                 PadUi.Fill(label, new Color(0.05f, 0.05f, 0.07f, 0.85f));
                 GUI.Label(label, part.Label, left ? PadUi.DelayMarkLabelRight : PadUi.DelayMarkLabel);
@@ -758,7 +792,7 @@ namespace GinPadHack
             if (delayTyping == null)
             {
                 BodyPart shown = delayHoverBar ?? delayHoverFigure;
-                string text = shown != null ? shown.Label : delayEdit ? "Edit" : "";
+                string text = !delayEditShown ? delayRange.ToString("0.0#") + "s" : shown != null ? shown.Label : "Edit";
                 GUI.Label(rect, text, PadUi.DelayHint);
                 return;
             }

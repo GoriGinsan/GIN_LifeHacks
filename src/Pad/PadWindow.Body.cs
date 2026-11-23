@@ -177,6 +177,7 @@ namespace GinPadHack
                 RememberPose(target);
             }
 
+            AdoptDelayEdit();
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical(PadUi.Width(FigureWidth));
             DrawFigureAndBars(target);
@@ -186,8 +187,8 @@ namespace GinPadHack
                 bodyArea = GUILayoutUtility.GetLastRect();
             }
 
-            GUILayout.Space(PadUi.Px(4f));
-            DrawDelayPanel(target);
+            GUILayout.Space(PadUi.Px(2f));
+            DrawDelayPanel(target);   // narrow: the window keeps its width (see PadWindow.Delay.cs)
             GUILayout.EndHorizontal();
         }
 
@@ -206,7 +207,7 @@ namespace GinPadHack
                     area.y + PadUi.Px(part.Place.y),
                     PadUi.Px(part.Place.width),
                     PadUi.Px(part.Place.height));
-                if (delayEdit)
+                if (delayEditShown)
                 {
                     DelayPartButton(place, target, part);   // Edit: the buttons set delays
                 }

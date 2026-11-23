@@ -251,8 +251,9 @@ namespace GinPadHack
 
             // The Body tab's Delay Key panel (PadWindow.Delay.cs).
             DelayKeyButton = new GUIStyle(Button);
-            DelayKeyButton.fixedHeight = Px(38f);
-            DelayKeyButton.fontSize = Mathf.RoundToInt(12f * scale);
+            DelayKeyButton.fixedHeight = Px(32f);
+            DelayKeyButton.fontSize = Mathf.RoundToInt(11f * scale);
+            DelayKeyButton.padding = new RectOffset(1, 1, 1, 1);
             DelayKeyButton.fontStyle = FontStyle.Bold;
             DelayKeyButton.onNormal.background = DelayKeyButton.onHover.background = DelayKeyButton.onActive.background = delayOnTexture;
             DelayGridLabel = new GUIStyle(Small);
