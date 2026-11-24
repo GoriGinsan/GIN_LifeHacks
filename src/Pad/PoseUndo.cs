@@ -10,6 +10,7 @@ namespace GinPadHack
     // takes a snapshot of the character's pose when a press begins and turns the difference into
     // one step of Studio's Undo once the edit is over. The pose is everything the Body tab (and
     // KKPE's limb functions) can change:
+    //   the character's root  position and rotation (the Body tab's Root trapezoid)
     //   Studio's IK targets   position and rotation
     //   Studio's FK nodes     rotation
     //   KKPE's bone overrides position, rotation and scale; a missing override counts too, so
@@ -44,6 +45,7 @@ namespace GinPadHack
         {
             Target = target;
             UndoDepth = UndoStack.Depth();
+            Remember(target.Character.guideObject);
             foreach (OCIChar.IKInfo ik in target.Character.listIKTarget)
             {
                 Remember(ik.guideObject);

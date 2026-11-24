@@ -39,6 +39,13 @@ namespace GinPadHack
         static readonly Color MarkerLit = new Color(1f, 0.72f, 0.2f, 1f);
         static readonly Color DelayOn = new Color(0.45f, 0.22f, 0.85f, 1f);
 
+        // The Body tab's Root trapezoid: plain grey without the blue tint of the other buttons.
+        static readonly Color RootIdle = new Color(0.42f, 0.42f, 0.42f, 1f);
+        static readonly Color RootHover = new Color(0.52f, 0.52f, 0.52f, 1f);
+        static readonly Color RootOn = new Color(0.60f, 0.60f, 0.60f, 1f);
+        static readonly Color RootHeld = new Color(0.68f, 0.68f, 0.68f, 1f);
+        const float TrapezoidTop = 0.62f;   // the top edge as a part of the bottom edge
+
         // Axis colours of the Body tab bars: X red, Y green, Z blue.
         internal static readonly Color[] AxisColors =
         {
@@ -52,6 +59,7 @@ namespace GinPadHack
         internal static GUIStyle Window, Button, PartButton, BoneButton, PinOff, PinOn, Small, Heading, BarBox, BarLabel, BarValue;
         internal static GUIStyle AxisBarBox, AxisTitle, Marker, MarkerOn, SmallBoneButton, CenterLabel, DragBox;
         internal static GUIStyle CornerButton, BigTime, TimeChange, TimeDetail;
+        internal static GUIStyle RootText;
         internal static GUIStyle DelayKeyButton, DelayGridLabel, DelayRangeLabel, DelayMarkLabel, DelayMarkLabelRight, DelayHint, DelayTyping, DelayVersus;
         internal static Texture2D TriangleDown, TriangleRight, Disc;
 
@@ -63,6 +71,7 @@ namespace GinPadHack
         static int clickButton, dragButton;
         static bool dragMoved, keyRequested;
         static Texture2D idleTexture, hoverTexture, accentTexture, pinTexture, boneTexture, markerTexture, delayOnTexture;
+        static Texture2D rootIdleTexture, rootHoverTexture, rootOnTexture, rootHeldTexture;
         static float scale = 1f, builtScale;
         static float lastMouseX;
 
@@ -121,7 +130,7 @@ namespace GinPadHack
         // knob changes it on every drag event). The textures are made once.
         internal static void EnsureStyles(float uiScale)
         {
-            if (delayOnTexture != null && Button != null && idleTexture != null && DelayVersus != null && builtScale == uiScale)
+            if (rootIdleTexture != null && Button != null && idleTexture != null && RootText != null && builtScale == uiScale)
             {
                 return;
             }
@@ -143,6 +152,14 @@ namespace GinPadHack
             if (delayOnTexture == null)
             {
                 delayOnTexture = Solid(DelayOn);
+            }
+
+            if (rootIdleTexture == null)
+            {
+                rootIdleTexture = Trapezoid(RootIdle);
+                rootHoverTexture = Trapezoid(RootHover);
+                rootOnTexture = Trapezoid(RootOn);
+                rootHeldTexture = Trapezoid(RootHeld);
             }
 
             Window = new GUIStyle();
@@ -282,6 +299,69 @@ namespace GinPadHack
             DelayTyping.alignment = TextAnchor.MiddleCenter;
             DelayVersus = new GUIStyle(TimeDetail);
             DelayVersus.alignment = TextAnchor.MiddleLeft;
+
+            // The label on the Body tab's Root trapezoid, a little low to sit in its wider part.
+            RootText = new GUIStyle(Small);
+            RootText.fontSize = Mathf.RoundToInt(10f * scale);
+            RootText.fontStyle = FontStyle.Bold;
+            RootText.alignment = TextAnchor.MiddleCenter;
+            RootText.clipping = TextClipping.Overflow;
+            RootText.padding = new RectOffset(0, 0, Mathf.RoundToInt(2f * scale), 0);
+            RootText.margin = new RectOffset(0, 0, 0, 0);
+        }
+
+        // ---- the Root trapezoid of the Body tab -----------------------------------------------
+
+        // Whether a point lies on the trapezoid drawn in this rectangle (narrow top, full bottom).
+        internal static bool InsideTrapezoid(Rect place, Vector2 point)
+        {
+            if (!place.Contains(point))
+            {
+                return false;
+            }
+
+            float down = (point.y - place.yMin) / Mathf.Max(1f, place.height);
+            float halfWidth = place.width * 0.5f * (TrapezoidTop + (1f - TrapezoidTop) * down);
+            return Mathf.Abs(point.x - place.center.x) <= halfWidth;
+        }
+
+        internal static void DrawTrapezoidButton(Rect place, string label, bool hover, bool held, bool on, bool usable)
+        {
+            Texture2D texture = held ? rootHeldTexture : on ? rootOnTexture : hover ? rootHoverTexture : rootIdleTexture;
+            Color previous = GUI.color;
+            if (!usable)
+            {
+                GUI.color = new Color(1f, 1f, 1f, 0.35f);
+            }
+
+            GUI.DrawTexture(place, texture);
+            RootText.normal.textColor = held || on ? new Color(0.10f, 0.10f, 0.10f, 1f) : Color.white;
+            GUI.Label(place, label, RootText);
+            GUI.color = previous;
+        }
+
+        // A trapezoid of one colour on a transparent rectangle: the bottom edge is the whole width,
+        // the top edge TrapezoidTop of it. Large enough for UiScale 2; the slanted sides are smoothed.
+        static Texture2D Trapezoid(Color color)
+        {
+            const int Width = 104, Height = 44;
+            Texture2D texture = new Texture2D(Width, Height, TextureFormat.ARGB32, false, true);
+            for (int y = 0; y < Height; y++)
+            {
+                // Texture rows run upwards: row 0 is the bottom edge.
+                float down = 1f - (y + 0.5f) / Height;
+                float halfWidth = Width * 0.5f * (TrapezoidTop + (1f - TrapezoidTop) * down);
+                for (int x = 0; x < Width; x++)
+                {
+                    float coverage = Mathf.Clamp01(halfWidth - Mathf.Abs(x + 0.5f - Width * 0.5f) + 0.5f);
+                    texture.SetPixel(x, y, new Color(color.r, color.g, color.b, coverage));
+                }
+            }
+
+            texture.Apply();
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.hideFlags = HideFlags.HideAndDontSave;
+            return texture;
         }
 
         // A white disc on a transparent square (the resize knob).

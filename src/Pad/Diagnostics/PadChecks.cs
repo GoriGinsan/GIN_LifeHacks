@@ -742,6 +742,26 @@ namespace GinPadHack
 
             Require(Part("R.Foot").Place.xMin < Part("R.Thigh").Place.xMin && Part("L.Foot").Place.xMax > Part("L.Thigh").Place.xMax, "the legs stand apart");
 
+            // The Root trapezoid: small, between the toes, on no other button; it moves the whole
+            // character and Studio's Undo takes the move back.
+            Require(RootPlace.xMin > Part("R.Toes").Place.xMax && RootPlace.xMax < Part("L.Toes").Place.xMin && RootPlace.height <= SmallHeight
+                && Mathf.Abs(RootPlace.center.x - FigureWidth / 2f) < 0.5f && RootPlace.yMax <= FigureRows * Pitch, "Root sits small and centred between the toes");
+            foreach (BodyPart part in BodyParts)
+            {
+                Require(!RootPlace.Overlaps(part.Place), "Root and " + part.Label + " do not overlap");
+            }
+
+            Require(PadUi.InsideTrapezoid(RootPlace, new Vector2(RootPlace.xMin + 1f, RootPlace.yMax - 1f)) && !PadUi.InsideTrapezoid(RootPlace, new Vector2(RootPlace.xMin + 1f, RootPlace.yMin + 1f))
+                && PadUi.InsideTrapezoid(RootPlace, RootPlace.center), "Root is a trapezoid: its narrow top corners do not take a press");
+            Vector3 rootBefore = target.Character.guideObject.changeAmount.pos;
+            PoseSnapshot beforeRoot = new PoseSnapshot(target);
+            MoveRoot(target, new Vector3(0.3f, 0.1f, -0.2f));
+            Vector3 rootWorldMove = target.Character.guideObject.transformTarget.position;
+            PoseCommand rootStep = PoseCommand.Between(beforeRoot, new PoseSnapshot(target));
+            Require(target.Character.guideObject.changeAmount.pos != rootBefore && rootStep != null && rootStep.Count == 1, "Root moves the character's own position, one Undo change");
+            rootStep.Undo();
+            Require((target.Character.guideObject.changeAmount.pos - rootBefore).sqrMagnitude < 1e-8f && rootWorldMove != target.Character.guideObject.transformTarget.position, "Undo puts the character back");
+
             // A bone edit goes to KKPE and can be removed again.
             Transform toes = target.Bone("cf_j_toes_L");
             Quaternion before = Kkpe.Rotation(target, toes);

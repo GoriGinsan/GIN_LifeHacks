@@ -8,6 +8,7 @@ namespace GinPadHack
     // Body tab: a figure of buttons, seen from the front like KKPE's own window.
     //
     //   grey   IK target  - a Studio IK target ("cf_t_hips(work)" ...). Values are Studio's own.
+    //   plain grey trapezoid between the toes: "Root", the whole character (PadWindow.Root.cs).
     //   green  bone       - a bone that otherwise needs KKPE's Advanced mode. Edited through KKPE's
     //                       bone editor; a bone that Studio FK controls is rotated on its FK node.
     //
@@ -216,6 +217,12 @@ namespace GinPadHack
                     PartButton(place, target, part);
                 }
             }
+
+            RootButton(new Rect(
+                area.x + PadUi.Px(RootPlace.x),
+                area.y + PadUi.Px(RootPlace.y),
+                PadUi.Px(RootPlace.width),
+                PadUi.Px(RootPlace.height)), target);
 
             // KKPE's own limb functions, then the tools for the selection.
             for (int first = 0; first < 8; first += 4)
