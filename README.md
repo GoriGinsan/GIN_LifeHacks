@@ -1,6 +1,6 @@
 # GIN LifeHacks
 
-**[Download GIN LifeHacks v1.1.1 (installation ZIP)](https://github.com/GoriGinsan/GIN_LifeHacks/releases/download/v1.1.1/GIN_LifeHacks_v1.1.1.zip)**
+**[Download GIN LifeHacks v1.2.0 (installation ZIP)](https://github.com/GoriGinsan/GIN_LifeHacks/releases/download/v1.2.0/GIN_LifeHacks_v1.2.0.zip)**
 
 Animation workflow helpers for **Koikatsu CharaStudio**. Three independent BepInEx 5 plugins improve Timeline and KKPE Advanced mode and add a small posing and expression window (GIN Pad, the `IK QOL` button), while using the existing editing and scene data of Timeline, KKPE and Studio.
 
@@ -21,9 +21,13 @@ Timeline helper 1.1.0, Advanced helper 1.1.0 and GIN Pad 1.0.0 were runtime-test
 
 Timeline helper 1.1.1 is 1.1.0 without Char Setup, which crashed the game on some installations. It was compiled from the same source with Char Setup left out and was not run again in the game.
 
-## In the source, not yet released — Delay Key and smoother Pad drags
+## New in v1.2.0
 
-The source on `main` is ahead of the v1.1.1 downloads: **GIN Pad life hack 1.1.0** and **Timeline helper 1.2.0** (Advanced helper 1.1.0 unchanged). They are built but have not been run in the game yet; build them with `src/build.ps1` until a release follows. See [CHANGELOG](CHANGELOG.md).
+**GIN Pad life hack 1.1.0** and **Timeline helper 1.2.0** (Advanced helper 1.1.0 unchanged). They were built and released **without being run in the game**; please report problems. See [CHANGELOG](CHANGELOG.md).
+
+- **Add missing rows** (Timeline, bottom of the Auto Key menu): with Auto Key on, an edit of something that has no row yet adds the row and keys it: guide objects (Timeline's own `Selected GuideObject` rows), KKPE bones and Blend Shapes, Material Editor properties and every other row type Timeline offers for the selected objects. Camera and animation rows are never added. Auto Key itself checks less often and stays light.
+- **Move / Rotate** (Pad, Body tab): the wheel on the figure switches what a drag on a grey button and on `Root` does (wheel up Move, wheel down Rotate). In Rotate, hands, feet and `Body` turn as seen from the camera.
+- **Ctrl + drag scales** (Pad, Body tab): on the bust and buttock buttons, left / right X, up / down Y, Ctrl + right drag Z. A middle click puts rotation and scale back.
 
 - **Delay Key** (Pad, Body tab): every body part has its own key delay in seconds, without frame steps. With `Delay Key` on, Auto Key of the Pad's edits, `Key now` and a middle click write each part's key that long after the playhead, so a pose change starts at the hips and runs out through the body (left and right may differ, for example L.Shoulder 0.052 s after R.Shoulder). A key already at the delayed time is updated. Set the delays on the delay bar beside the figure or, with `Edit`, by dragging the figure's buttons up and down; a dragged part takes along the parts further from the origin (Ctrl + click sets the origin, Alt moves one part only). Only keys written from the Pad are delayed. Needs Timeline helper 1.2.0.
 - **Root** (Pad, Body tab): a small plain-grey trapezoid between the toes moves the whole character (Studio's own position of the character), neither a bone nor an IK target. Drag moves it on the floor plane as seen from the camera, right drag up and down; in `Rotate` mode (wheel down on the figure) a drag turns the character around the vertical and a right drag tilts it; a click selects the character's root in Studio, a middle click keys its position row at the playhead. Ctrl + Z takes a move back.
@@ -34,10 +38,10 @@ The source on `main` is ahead of the v1.1.1 downloads: **GIN Pad life hack 1.1.0
 
 Get the ZIP files from **[GIN LifeHacks Releases](https://github.com/GoriGinsan/GIN_LifeHacks/releases/latest)**:
 
-- `GIN_LifeHacks_v1.1.1.zip`: all three plugins.
-- `GIN_Timeline_LifeHack_v1.1.1.zip`: Timeline helper only (1.1.1: the 1.1.0 tools without Char Setup).
-- `GIN_Advance_Mode_LifeHack_v1.1.0.zip`: Advanced mode helper only.
-- `GIN_Pad_LifeHack_v1.0.0.zip`: GIN Pad (`IK QOL`) only.
+- `GIN_LifeHacks_v1.2.0.zip`: all three plugins.
+- `GIN_Timeline_LifeHack_v1.2.0.zip`: Timeline helper only.
+- `GIN_Advance_Mode_LifeHack_v1.1.0.zip`: Advanced mode helper only (unchanged).
+- `GIN_Pad_LifeHack_v1.1.0.zip`: GIN Pad (`IK QOL`) only.
 
 Close Studio, extract your chosen ZIP, and copy its **BepInEx** folder into the game folder containing `CharaStudio.exe`. Allow merging of folders and replacement of these GIN files. Each ZIP contains only the runtime DLLs it installs:
 

@@ -1,8 +1,8 @@
 # Changes
 
-## Unreleased — Delay Key, smoother Pad drags
+## v1.2.0 — Add missing rows, Move / Rotate, Ctrl scaling, Delay Key
 
-Timeline helper 1.2.0 + GIN Pad life hack 1.1.0 (Advanced mode helper 1.1.0 unchanged). Built; not yet run in the game.
+Bundle: Timeline helper 1.2.0 + GIN Pad life hack 1.1.0 + Advanced mode helper 1.1.0 (unchanged, the v1.1.0 binary). Built and released; not yet run in the game.
 
 GIN Pad life hack 1.1.0
 

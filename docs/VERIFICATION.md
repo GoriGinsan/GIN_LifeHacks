@@ -1,5 +1,15 @@
 # Verification
 
+## v1.2.0, built 2026-11-27
+
+Timeline helper 1.2.0 (public edition, without Char Setup) + GIN Pad life hack 1.1.0 + Advanced helper 1.1.0. Checked: all plugins compile against Timeline 1.5.6, KKPE and Material Editor 3.12 of the author's game; the new Pad checks (`Body Rotate mode`, `Body Ctrl scale`) are part of the Pad's check run. They were **not run in the game**: Delay Key, Root, Move / Rotate, Ctrl scaling and Auto Key's `Add missing rows` (including its Material Editor hook) are untested in Studio. The Advanced helper is the unchanged v1.1.0 binary (byte-equal to the release asset of v1.1.0).
+
+| Runtime DLL | Plugin version | SHA256 |
+| --- | --- | --- |
+| GIN Timeline life hack.dll | 1.2.0 | `2A13FDB5EEF12CC6A82D289ADC32F2B3681F749B34895BBBFBA5EC583CFAE3BD` |
+| GIN Advance mode life hack.dll | 1.1.0 | `C278AC00C25B885CB3699CCF7F30E62AAF859542BB08F3F4A5FCC3AE5C101774` |
+| GIN Pad life hack.dll | 1.1.0 | `DEFCF1120046E4E469F8CCA453924997D8695161FE8346AD6BB842364A4F3045` |
+
 ## v1.1.1, built 2026-11-22
 
 Timeline helper 1.1.1 is the 1.1.0 source compiled without Char Setup (`build.ps1` public edition). Checked: it compiles; the DLL contains none of the Char Setup code, the `Char Setup` button label or the embedded `CharacterSetup.xml`; Auto Key, track registration (`RegisterTracksFromXml`) and the Pad services (`KeyFaceRows`, `KeyNamedRows`) are present. It was **not run in the game** again. The Advanced helper and GIN Pad in the v1.1.1 ZIPs are the unchanged v1.1.0 binaries (byte-equal to the release assets of v1.1.0).
