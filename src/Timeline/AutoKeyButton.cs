@@ -14,6 +14,7 @@ namespace GinTimelineHack
     // Timeline's own behaviour of copying the curve of the key before. A key that Auto Key only
     // updates keeps its curve. The curves are read from Timeline itself, so they are exactly the
     // ones its preset buttons apply. The choice is saved in the AutoKey / Curve setting.
+    // Below the curves, the "Add missing rows" check box (AutoKeyRows.cs).
     public sealed partial class Plugin
     {
         const float RecordWidth = 26f, ArrowWidth = 16f;
@@ -141,6 +142,7 @@ namespace GinTimelineHack
                 curveButtons.Add(button);
             }
 
+            BuildAddRowsToggle(autoKeyMenu, MenuPadding + CurveNames.Length * MenuRowHeight);
             autoKeyMenu.gameObject.SetActive(false);
             ShowCurveChoice();
         }
@@ -155,13 +157,14 @@ namespace GinTimelineHack
             if (open)
             {
                 // Under the button, or above it when the toolbar sits low on the screen.
-                float height = CurveNames.Length * MenuRowHeight + 2 * MenuPadding;
+                float height = (CurveNames.Length + 1) * MenuRowHeight + AddRowsGap + 2 * MenuPadding;
                 Rect bounds = PanelScreenBounds(toolbar, PanelCamera());
                 bool upwards = bounds.yMin < height + 8f;
                 float x = autoKeyButton.rectTransform.anchoredPosition.x;
                 Put(autoKeyMenu, x, upwards ? -(height + 2f) : ToolbarHeight + 2f, MenuWidth, height);
                 autoKeyMenu.SetAsLastSibling();
                 ShowCurveChoice();
+                ShowAddRowsState();
             }
 
             autoKeyMenu.gameObject.SetActive(open);

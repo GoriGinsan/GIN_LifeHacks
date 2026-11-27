@@ -8,13 +8,17 @@ namespace GinPadHack
     // position of the character, the guide object of its root), neither a bone nor an IK target.
     // Its grey and its shape keep it apart from the figure's buttons.
     //
-    //   drag           move the character horizontally (floor plane), as seen from the camera
-    //   right drag     move the character up and down
+    //   drag           Move: move the character horizontally (floor plane), as seen from the camera
+    //                  Rotate: turn the character around the vertical (left / right only)
+    //   right drag     Move: move the character up and down
+    //                  Rotate: tilt it as seen from the camera (up / down tips it towards or away
+    //                  from the camera, left / right leans it sideways)
     //   click          select the character's root in Studio, for Studio's own gizmo
     //   middle click   key the character's position row in the Timeline at the playhead
     //
-    // It is not part of the figure's selection; Ctrl + Z undoes a drag like any edit of the tab
-    // (PoseUndo.cs keeps the root's position).
+    // Move / Rotate is the figure's mode (PadWindow.Body.cs). It is not part of the figure's
+    // selection; Ctrl + Z undoes a drag like any edit of the tab (PoseUndo.cs keeps the root's
+    // position and rotation).
     public sealed partial class PadWindow
     {
         internal const string RootLabel = "Root";
@@ -49,6 +53,20 @@ namespace GinPadHack
 
             Transform parent = guide.transformTarget.parent;
             guide.changeAmount.pos += parent == null ? world : parent.InverseTransformVector(world);
+        }
+
+        // Turn the character's root by a world rotation, around its own position.
+        internal static void TurnRoot(PadTarget target, Quaternion world)
+        {
+            GuideObject guide = RootGuide(target);
+            if (guide == null || !guide.enableRot)
+            {
+                return;
+            }
+
+            Transform parent = guide.transformTarget.parent;
+            Quaternion parentRotation = parent == null ? Quaternion.identity : parent.rotation;
+            guide.changeAmount.rot = TurnedInWorld(parentRotation, Quaternion.Euler(guide.changeAmount.rot), world).eulerAngles;
         }
 
         void RootButton(Rect place, PadTarget target)
@@ -103,15 +121,26 @@ namespace GinPadHack
                 case EventType.Repaint:
                     bool hover = usable && PadUi.InsideTrapezoid(place, current.mousePosition);
                     bool on = usable && Singleton<GuideObjectManager>.IsInstance() && Singleton<GuideObjectManager>.Instance.selectObject == RootGuide(target);
-                    PadUi.DrawTrapezoidButton(place, RootLabel, hover, GUIUtility.hotControl == id, on, usable);
+                    PadUi.DrawTrapezoidButton(place, RootLabel, hover, GUIUtility.hotControl == id, on, usable, rotateMode);
                     break;
             }
         }
 
-        // The same movement as a drag on an IK target button (DragSelection).
+        // Move: the same movement as a drag on an IK target button (DragSelection).
+        // Rotate: a plain drag only turns around the vertical, so turning the character never tips
+        // it by accident; the right button tilts it.
         void DragRoot(PadTarget target, Vector2 pixels, bool rightButton)
         {
-            if (rightButton)
+            if (rotateMode)
+            {
+                Transform view = Singleton<Studio.Studio>.Instance.cameraCtrl.mainCmaera.transform;
+                Quaternion turn = rightButton
+                    ? Quaternion.AngleAxis(-pixels.x * DragDegreesPerPixel, Flat(view.forward, Flat(view.up, Vector3.forward)))
+                        * Quaternion.AngleAxis(-pixels.y * DragDegreesPerPixel, Flat(view.right, Vector3.right))
+                    : Quaternion.AngleAxis(-pixels.x * DragDegreesPerPixel, Vector3.up);
+                TurnRoot(target, turn);
+            }
+            else if (rightButton)
             {
                 MoveRoot(target, Vector3.up * (-pixels.y * DragMovePerPixel));
             }

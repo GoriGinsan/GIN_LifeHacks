@@ -16,12 +16,24 @@ namespace GinPadHack
     // either IK targets or bones, never both. The last selected part is the "primary": the bars
     // show its values and it is the one selected in Studio.
     //
+    // Move / Rotate: what a drag on a grey button (and on Root) does. The wheel on the figure picks
+    // it by its direction, wheel up Move, wheel down Rotate, so turning it too far changes nothing;
+    // the "Move" / "Rotate" buttons beside "Key now" show it and switch it too. In Rotate mode the
+    // grey buttons that turn (hands, feet, Body) are amber, the others are dimmed. Green buttons
+    // always turn their bone. Rotate is off after every Studio start.
+    //
     // Editing, always applied to the whole selection:
     //   drag on a green button         turn the bone freely, as seen from the camera
     //   right drag on a green button   roll the bone around the viewing direction
-    //   middle click on a green button put the bone's rotation back to its default
-    //   drag on a grey button          move the IK target horizontally (floor plane)
-    //   right drag on a grey button    move the IK target up and down
+    //   middle click on a green button put the bone's rotation and scale back to their defaults
+    //   Ctrl + drag on a button that     scale the bone: left / right X, up / down Y (right and up grow)
+    //     scales (bust 1 / 3, buttocks)
+    //   Ctrl + right drag on it          scale its Z (right or up grows)
+    //                                  A Ctrl + click without a drag still adds or removes the part.
+    //   drag on a grey button          Move: move the IK target horizontally (floor plane)
+    //                                  Rotate: turn it freely as seen from the camera, as a green button
+    //   right drag on a grey button    Move: move the IK target up and down
+    //                                  Rotate: roll it around the viewing direction
     //   bars                           add to one axis; right click a bone's bar removes that override
     //   Key now, middle click a bar    key the selection in the Timeline at the playhead
     //                                  (with Delay Key: each part later by its delay, PadWindow.Delay.cs)
@@ -54,9 +66,9 @@ namespace GinPadHack
 
         const float FigureWidth = 306f, Pitch = 34f, PartHeight = 30f, SmallHeight = 22f;
         const int FigureRows = 11;
-        const float TitleWidth = 32f, AxisBarWidth = 89f, ScaleBarWidth = 66f, FunctionWidth = 74f;
+        const float TitleWidth = 32f, AxisBarWidth = 89f, ScaleBarWidth = 66f, FunctionWidth = 74f, ModeWidth = 46f;
         const float BarMovePerPixel = 0.002f, BoneMovePerPixel = 0.0002f, DegreesPerPixel = 0.4f, ScalePerPixel = 0.003f;
-        const float DragMovePerPixel = 0.003f, DragDegreesPerPixel = 0.5f;
+        const float DragMovePerPixel = 0.003f, DragDegreesPerPixel = 0.5f, MinScale = 0.01f;
         const int PoseSettleFrames = 2;   // Swap pose and the limb copies happen in KKPE's next IK pass
         const string BodyRenderer = "o_body_a";
 
@@ -72,7 +84,9 @@ namespace GinPadHack
         readonly List<BodyPart> selection = new List<BodyPart>();   // the last entry is the primary part
         readonly List<ShapeRow> bodyShapes = new List<ShapeRow>();
         BodyPart collapseOnClick;      // pressed member of a group: a click without a drag selects it alone
+        bool rotateMode;               // Rotate: a drag on a grey button or Root turns it instead of moving it
         bool pressDragged;
+        bool pressScales;              // Ctrl was held on a button that scales: a drag scales the bone
         int pressButton;
         Component bodyShapesOwner;
         string bodyShapesRenderer = BodyRenderer;   // only the layout preview of the tests points this elsewhere
@@ -224,6 +238,14 @@ namespace GinPadHack
                 PadUi.Px(RootPlace.width),
                 PadUi.Px(RootPlace.height)), target);
 
+            // The wheel on the figure picks Move or Rotate by its direction (wheel up: Move).
+            Event wheel = Event.current;
+            if (wheel.type == EventType.ScrollWheel && !delayEditShown && wheel.delta.y != 0f && area.Contains(wheel.mousePosition))
+            {
+                SetRotateMode(wheel.delta.y > 0f);
+                wheel.Use();
+            }
+
             // KKPE's own limb functions, then the tools for the selection.
             for (int first = 0; first < 8; first += 4)
             {
@@ -255,8 +277,18 @@ namespace GinPadHack
             // The primary part's real name, and "Key now": a middle click on the figure resets a
             // bone's rotation, so keying the selection has a button of its own.
             GUILayout.BeginHorizontal(PadUi.Width(FigureWidth));
-            GUILayout.Label(SelectionCaption(target), PadUi.Small, GUILayout.MaxWidth(PadUi.Px(FigureWidth - 66f)));
+            GUILayout.Label(SelectionCaption(target), PadUi.Small, GUILayout.MaxWidth(PadUi.Px(FigureWidth - 66f - ModeWidth * 2f)));
             GUILayout.FlexibleSpace();
+            if (GUILayout.Toggle(!rotateMode, "Move", PadUi.Button, PadUi.Width(ModeWidth)) && rotateMode)
+            {
+                SetRotateMode(false);
+            }
+
+            if (GUILayout.Toggle(rotateMode, "Rotate", PadUi.Button, PadUi.Width(ModeWidth)) && !rotateMode)
+            {
+                SetRotateMode(true);
+            }
+
             GUI.enabled = shownSelection.Count > 0;
             if (GUILayout.Button("Key now", PadUi.Button, PadUi.Width(60)))
             {
@@ -300,9 +332,22 @@ namespace GinPadHack
             if (PadUi.TakeHeldMovement(id, current.delta, out moved))   // once per frame, beyond the screen edge
             {
                 pressDragged = true;
-                if (selection.Contains(part))
+                Vector2 pixels = moved * (PadUi.Fine(current) ? PadUi.FineFactor : 1f) * PadUi.Sensitivity;
+                if (pressScales)
                 {
-                    DragSelection(target, part, moved * (PadUi.Fine(current) ? PadUi.FineFactor : 1f) * PadUi.Sensitivity, pressButton == 1);
+                    if (!selection.Contains(part))
+                    {
+                        // Ctrl + drag on a part outside the selection scales that part alone.
+                        selection.Clear();
+                        selection.Add(part);
+                        SelectInStudio(target);
+                    }
+
+                    ScaleSelection(target, pixels, pressButton == 1);
+                }
+                else if (selection.Contains(part))
+                {
+                    DragSelection(target, part, pixels, pressButton == 1);
                 }
             }
 
@@ -319,7 +364,19 @@ namespace GinPadHack
                         GUIUtility.hotControl = id;
                         pressButton = current.button;
                         pressDragged = false;
-                        Press(target, part, current.control);
+                        // Ctrl on a button that scales: a drag scales it, a click (on release)
+                        // adds or removes it as before.
+                        pressScales = current.control && part.Via == Via.Bone && part.Scale;
+                        if (!pressScales)
+                        {
+                            Press(target, part, current.control);
+                        }
+
+                        if (rotateMode && part.Via == Via.Ik && !CanTurn(target, part))
+                        {
+                            Status(part.Label + " does not turn: wheel up on the figure for Move");
+                        }
+
                         current.Use();
                     }
                     else if (current.button == 2)
@@ -345,6 +402,12 @@ namespace GinPadHack
                             SelectInStudio(target);
                         }
 
+                        if (pressScales && !pressDragged)
+                        {
+                            Press(target, part, true);
+                        }
+
+                        pressScales = false;
                         collapseOnClick = null;
                         current.Use();
                     }
@@ -357,12 +420,13 @@ namespace GinPadHack
                     }
 
                     Color previous = GUI.color;
-                    if (!Usable(target, part))
+                    bool turns = rotateMode && part.Via == Via.Ik && CanTurn(target, part);
+                    if (!Usable(target, part) || (rotateMode && part.Via == Via.Ik && !turns))
                     {
                         GUI.color = new Color(1f, 1f, 1f, 0.35f);
                     }
 
-                    GUIStyle style = part.Via == Via.Ik ? PadUi.PartButton : part.Small ? PadUi.SmallBoneButton : PadUi.BoneButton;
+                    GUIStyle style = turns ? PadUi.RotatePartButton : part.Via == Via.Ik ? PadUi.PartButton : part.Small ? PadUi.SmallBoneButton : PadUi.BoneButton;
                     style.Draw(place, part.Label, place.Contains(current.mousePosition), GUIUtility.hotControl == id, selection.Contains(part), false);
                     GUI.color = previous;
                     break;
@@ -381,6 +445,19 @@ namespace GinPadHack
 
             OCIChar.IKInfo ik = target.IkTarget(part.Name);
             return ik != null && ik.active && target.Character.oiCharInfo.enableIK;
+        }
+
+        // Whether Studio lets this IK target turn (hands, feet and Body do).
+        static bool CanTurn(PadTarget target, BodyPart part)
+        {
+            OCIChar.IKInfo ik = target.IkTarget(part.Name);
+            return ik != null && ik.guideObject != null && ik.guideObject.enableRot;
+        }
+
+        void SetRotateMode(bool on)
+        {
+            rotateMode = on;
+            Status(on ? "Rotate: a drag turns hands, feet, Body and Root (wheel up: Move)" : "Move: a drag moves IK targets and Root (wheel down: Rotate)");
         }
 
         void Press(PadTarget target, BodyPart part, bool addOrRemove)
@@ -596,14 +673,22 @@ namespace GinPadHack
         void DragSelection(PadTarget target, BodyPart grabbed, Vector2 pixels, bool rightButton)
         {
             Transform view = Singleton<Studio.Studio>.Instance.cameraCtrl.mainCmaera.transform;
-            if (grabbed.Via == Via.Bone)
+            if (grabbed.Via == Via.Bone || rotateMode)
             {
-                // Turn as the bones are seen on screen: left / right around the camera's up axis,
+                // Turn as the parts are seen on screen: left / right around the camera's up axis,
                 // up / down around its right axis; the right button rolls around the viewing direction.
+                // IK targets that Studio does not let turn are left alone (TurnIkTargets).
                 Quaternion turn = rightButton
                     ? Quaternion.AngleAxis(-pixels.x * DragDegreesPerPixel, view.forward)
                     : Quaternion.AngleAxis(-pixels.x * DragDegreesPerPixel, view.up) * Quaternion.AngleAxis(-pixels.y * DragDegreesPerPixel, view.right);
-                TurnBones(target, selection, turn, true);
+                if (grabbed.Via == Via.Bone)
+                {
+                    TurnBones(target, selection, turn, true);
+                }
+                else
+                {
+                    TurnIkTargets(target, selection, turn);
+                }
             }
             else if (rightButton)
             {
@@ -618,6 +703,31 @@ namespace GinPadHack
             }
 
             BodyEdited(target, selection);
+        }
+
+        // Ctrl + drag: scale every selected bone that scales by the same amount on its own axes.
+        // Left button: right / left grows / shrinks X, up / down grows / shrinks Y.
+        // Right button: Z, growing to the right and upwards.
+        void ScaleSelection(PadTarget target, Vector2 pixels, bool rightButton)
+        {
+            Vector3 grow = rightButton
+                ? new Vector3(0f, 0f, (pixels.x - pixels.y) * ScalePerPixel)
+                : new Vector3(pixels.x * ScalePerPixel, -pixels.y * ScalePerPixel, 0f);
+            ScaleBones(target, selection, grow);
+            BodyEdited(target, selection);
+        }
+
+        void ScaleBones(PadTarget target, List<BodyPart> parts, Vector3 grow)
+        {
+            foreach (BodyPart part in parts)
+            {
+                Transform bone = target.Bone(part.Name);
+                if (bone != null && part.Scale)
+                {
+                    Vector3 scale = Kkpe.Scale(target, bone) + grow;
+                    Kkpe.SetScale(target, bone, new Vector3(Mathf.Max(MinScale, scale.x), Mathf.Max(MinScale, scale.y), Mathf.Max(MinScale, scale.z)));
+                }
+            }
         }
 
         // A direction laid on the floor plane; the fallback is used when it points straight up or down.
@@ -729,8 +839,9 @@ namespace GinPadHack
             }
         }
 
-        // Middle click on a green button: the rotation of that bone goes back to its default.
-        // A member of the selection takes the whole selection with it.
+        // Middle click on a green button: the rotation and the scale of that bone go back to their
+        // defaults (the position stays). A member of the selection takes the whole selection with it.
+        // A bone that does not scale keeps its scale override, as its bars do.
         void ResetRotation(PadTarget target, BodyPart part)
         {
             List<BodyPart> parts = new List<BodyPart>();
@@ -743,8 +854,8 @@ namespace GinPadHack
                 parts.Add(part);
             }
 
-            ResetBones(target, parts, false, true, false);
-            Status("Rotation reset: " + part.Label + (parts.Count > 1 ? "  + " + (parts.Count - 1) : ""));
+            ResetBones(target, parts, false, true, true);
+            Status("Rotation and scale reset: " + part.Label + (parts.Count > 1 ? "  + " + (parts.Count - 1) : ""));
         }
 
         // Remove one kind of KKPE override from every listed bone that has that kind of bar.

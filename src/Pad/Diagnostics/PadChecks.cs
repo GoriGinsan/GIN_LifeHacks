@@ -264,7 +264,10 @@ namespace GinPadHack
             Check(log, "Face tab list", delegate { return CheckFaceList(target); });
             Check(log, "pupil limits", delegate { return CheckPupils(target); });
             Check(log, "expression map", delegate { return CheckMap(target); });
+            rotateMode = false;   // the checks below drag in Move mode unless they say otherwise
             Check(log, "Body tab", delegate { return CheckBody(target); });
+            Check(log, "Body Rotate mode", delegate { return CheckRotateMode(target); });
+            Check(log, "Body Ctrl scale", delegate { return CheckCtrlScale(target); });
             Check(log, "Body drag limits", delegate { return CheckDragLimits(target); });
             Check(log, "Body undo", delegate { return CheckPoseUndo(target); });
             Check(log, "endless drag", delegate { return CheckEndlessDrag(target); });
@@ -961,6 +964,124 @@ namespace GinPadHack
             finally
             {
                 Array.Copy(before, tabs, tabs.Length);
+            }
+        }
+
+        // Rotate mode: a drag on a grey button turns the IK targets instead of moving them, every
+        // selected one by the same world turn; a target Studio does not let turn stays where it is.
+        // Root turns around the vertical on a plain drag and tilts on a right drag; Undo takes it back.
+        string CheckRotateMode(PadTarget target)
+        {
+            BodyPart leftHand = Part("L.Hand"), rightHand = Part("R.Hand"), knee = Part("L.Knee");
+            GuideObject hand = target.IkTarget(leftHand.Name).guideObject, otherHand = target.IkTarget(rightHand.Name).guideObject;
+            GuideObject kneeGuide = target.IkTarget(knee.Name).guideObject;
+            Require(CanTurn(target, leftHand) && CanTurn(target, rightHand) && CanTurn(target, Part("Body")) && CanTurn(target, Part("L.Foot")), "hands, feet and Body turn");
+
+            Vector3 handPos = hand.changeAmount.pos, otherPos = otherHand.changeAmount.pos, kneePos = kneeGuide.changeAmount.pos;
+            Vector3 handRot = hand.changeAmount.rot, otherRot = otherHand.changeAmount.rot, kneeRot = kneeGuide.changeAmount.rot;
+            Quaternion handStart = hand.transformTarget.parent.rotation * Quaternion.Euler(handRot);
+            Quaternion otherStart = otherHand.transformTarget.parent.rotation * Quaternion.Euler(otherRot);
+            GuideObject root = target.Character.guideObject;
+            Vector3 rootPos = root.changeAmount.pos, rootRot = root.changeAmount.rot;
+            try
+            {
+                rotateMode = true;
+                selection.Clear();
+                Press(target, leftHand, false);
+                Press(target, rightHand, true);
+                Press(target, knee, true);
+                Press(target, leftHand, true);
+                Press(target, leftHand, true);   // left hand is the primary again
+                DragSelection(target, leftHand, new Vector2(30f, -20f), false);
+                DragSelection(target, leftHand, new Vector2(-10f, 15f), true);
+                Quaternion handWorld = hand.transformTarget.parent.rotation * Quaternion.Euler(hand.changeAmount.rot) * Quaternion.Inverse(handStart);
+                Quaternion otherWorld = otherHand.transformTarget.parent.rotation * Quaternion.Euler(otherHand.changeAmount.rot) * Quaternion.Inverse(otherStart);
+                Require(Quaternion.Angle(Quaternion.identity, handWorld) > 5f, "the grabbed hand turned");
+                Require(Quaternion.Angle(handWorld, otherWorld) < 0.5f, "the other hand turned the same way, not mirrored");
+                Require((hand.changeAmount.pos - handPos).sqrMagnitude < 1e-10f && (otherHand.changeAmount.pos - otherPos).sqrMagnitude < 1e-10f, "the hands did not move");
+                Require((kneeGuide.changeAmount.pos - kneePos).sqrMagnitude < 1e-10f, "the knee did not move");
+                bool kneeTurns = CanTurn(target, knee);
+                Require(kneeTurns || kneeGuide.changeAmount.rot == kneeRot, "a knee that does not turn stays as it was");
+
+                // Root: a plain drag only turns around the vertical, even when dragged up and down too.
+                PoseSnapshot beforeTurn = new PoseSnapshot(target);
+                Vector3 upBefore = root.transformTarget.up;
+                Quaternion rootStart = root.transformTarget.rotation;
+                DragRoot(target, new Vector2(60f, 25f), false);
+                Require(Vector3.Angle(upBefore, root.transformTarget.up) < 0.1f && Mathf.Abs(Quaternion.Angle(rootStart, root.transformTarget.rotation) - 60f * DragDegreesPerPixel) < 0.5f,
+                    "a plain drag on Root turns the character around the vertical only");
+                Require((root.changeAmount.pos - rootPos).sqrMagnitude < 1e-10f, "turning did not move the character");
+                PoseCommand turnStep = PoseCommand.Between(beforeTurn, new PoseSnapshot(target));
+                Require(turnStep != null && turnStep.Count == 1, "turning Root is one Undo change");
+                turnStep.Undo();
+                Require(Quaternion.Angle(rootStart, root.transformTarget.rotation) < 0.1f, "Undo turns the character back");
+                DragRoot(target, new Vector2(0f, 30f), true);
+                Require(Vector3.Angle(upBefore, root.transformTarget.up) > 5f, "a right drag on Root tilts the character");
+
+                // Move mode again: the same drag moves.
+                rotateMode = false;
+                root.changeAmount.rot = rootRot;
+                Vector3 rotBeforeMove = hand.changeAmount.rot;
+                DragSelection(target, leftHand, new Vector2(30f, -20f), false);
+                Require((hand.changeAmount.pos - handPos).sqrMagnitude > 0.0001f && hand.changeAmount.rot == rotBeforeMove, "back in Move mode a drag moves the hand and keeps its turn");
+                return "a drag turns hands, feet and Body (the same world turn for every selected target), the knee " + (kneeTurns ? "turns too" : "stays put")
+                    + "; Root turns around the vertical on a plain drag, tilts on a right drag, one Undo change; Move mode moves again";
+            }
+            finally
+            {
+                rotateMode = false;
+                hand.changeAmount.pos = handPos;
+                hand.changeAmount.rot = handRot;
+                otherHand.changeAmount.pos = otherPos;
+                otherHand.changeAmount.rot = otherRot;
+                kneeGuide.changeAmount.pos = kneePos;
+                kneeGuide.changeAmount.rot = kneeRot;
+                root.changeAmount.pos = rootPos;
+                root.changeAmount.rot = rootRot;
+                selection.Clear();
+            }
+        }
+
+        // Ctrl + drag on a bust or buttock button scales the bone: X left / right, Y up / down,
+        // Z with the right button; both selected sides the same; never below MinScale.
+        string CheckCtrlScale(PadTarget target)
+        {
+            BodyPart left = Part("L.Bust1"), right = Part("R.Bust1"), butt = Part("L.Butt"), neck = Part("Neck");
+            Require(left.Scale && right.Scale && Part("L.Bust3").Scale && butt.Scale && !neck.Scale, "busts and buttocks scale, the neck does not");
+            Transform leftBone = target.Bone(left.Name), rightBone = target.Bone(right.Name), buttBone = target.Bone(butt.Name);
+            Vector3 leftStart = Kkpe.Scale(target, leftBone), rightStart = Kkpe.Scale(target, rightBone), buttStart = Kkpe.Scale(target, buttBone);
+            try
+            {
+                selection.Clear();
+                Press(target, left, false);
+                Press(target, right, true);
+                ScaleSelection(target, new Vector2(20f, -10f), false);
+                Vector3 grown = Kkpe.Scale(target, leftBone) - leftStart;
+                Require(Near(grown.x, 20f * ScalePerPixel) && Near(grown.y, 10f * ScalePerPixel) && Near(grown.z, 0f), "left drag: right grows X, up grows Y: " + grown);
+                Require(Near((Kkpe.Scale(target, rightBone) - rightStart).x, grown.x), "the other bust grows the same");
+                ScaleSelection(target, new Vector2(10f, -5f), true);
+                Require(Near(Kkpe.Scale(target, leftBone).z - leftStart.z, 15f * ScalePerPixel), "right drag grows Z");
+
+                // Middle click puts the scale back too, on the whole selection.
+                IDictionary overrides = Reflect.Get<IDictionary>(target.Bones, "_dirtyBones");
+                bool hadOverride = overrides.Contains(leftBone.gameObject) && overrides.Contains(rightBone.gameObject);
+                ResetRotation(target, right);
+                Require(hadOverride && !overrides.Contains(leftBone.gameObject) && !overrides.Contains(rightBone.gameObject), "middle click removes the scale of both selected busts");
+                selection.Clear();
+                Press(target, butt, false);
+                ScaleSelection(target, new Vector2(-100000f, 0f), false);
+                Require(Near(Kkpe.Scale(target, buttBone).x, MinScale), "scale stops at " + MinScale);
+                return "Ctrl drag scales X / Y, Ctrl right drag Z, every selected bust the same, at least " + MinScale;
+            }
+            finally
+            {
+                Kkpe.SetScale(target, leftBone, leftStart);
+                Kkpe.SetScale(target, rightBone, rightStart);
+                Kkpe.SetScale(target, buttBone, buttStart);
+                Kkpe.ResetBone(target, leftBone, false, false, true);
+                Kkpe.ResetBone(target, rightBone, false, false, true);
+                Kkpe.ResetBone(target, buttBone, false, false, true);
+                selection.Clear();
             }
         }
 

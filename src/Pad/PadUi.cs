@@ -38,6 +38,8 @@ namespace GinPadHack
         static readonly Color PinLit = new Color(0.95f, 0.78f, 0.25f, 1f);
         static readonly Color MarkerLit = new Color(1f, 0.72f, 0.2f, 1f);
         static readonly Color DelayOn = new Color(0.45f, 0.22f, 0.85f, 1f);
+        static readonly Color RotateIdle = new Color(0.52f, 0.34f, 0.12f, 1f);   // Body tab, Rotate mode
+        static readonly Color RotateRootTint = new Color(1f, 0.72f, 0.38f, 1f);
 
         // The Body tab's Root trapezoid: plain grey without the blue tint of the other buttons.
         static readonly Color RootIdle = new Color(0.42f, 0.42f, 0.42f, 1f);
@@ -56,7 +58,7 @@ namespace GinPadHack
         internal static readonly Color Neutral = new Color(0.30f, 0.31f, 0.36f, 1f);
 
         internal static float Sensitivity = 1f;
-        internal static GUIStyle Window, Button, PartButton, BoneButton, PinOff, PinOn, Small, Heading, BarBox, BarLabel, BarValue;
+        internal static GUIStyle Window, Button, PartButton, RotatePartButton, BoneButton, PinOff, PinOn, Small, Heading, BarBox, BarLabel, BarValue;
         internal static GUIStyle AxisBarBox, AxisTitle, Marker, MarkerOn, SmallBoneButton, CenterLabel, DragBox;
         internal static GUIStyle CornerButton, BigTime, TimeChange, TimeDetail;
         internal static GUIStyle RootText;
@@ -70,7 +72,7 @@ namespace GinPadHack
         static float lastMouseY;
         static int clickButton, dragButton;
         static bool dragMoved, keyRequested;
-        static Texture2D idleTexture, hoverTexture, accentTexture, pinTexture, boneTexture, markerTexture, delayOnTexture;
+        static Texture2D idleTexture, hoverTexture, accentTexture, pinTexture, boneTexture, markerTexture, delayOnTexture, rotateTexture;
         static Texture2D rootIdleTexture, rootHoverTexture, rootOnTexture, rootHeldTexture;
         static float scale = 1f, builtScale;
         static float lastMouseX;
@@ -130,7 +132,7 @@ namespace GinPadHack
         // knob changes it on every drag event). The textures are made once.
         internal static void EnsureStyles(float uiScale)
         {
-            if (rootIdleTexture != null && Button != null && idleTexture != null && RootText != null && builtScale == uiScale)
+            if (rootIdleTexture != null && Button != null && idleTexture != null && RootText != null && RotatePartButton != null && builtScale == uiScale)
             {
                 return;
             }
@@ -152,6 +154,11 @@ namespace GinPadHack
             if (delayOnTexture == null)
             {
                 delayOnTexture = Solid(DelayOn);
+            }
+
+            if (rotateTexture == null)
+            {
+                rotateTexture = Solid(RotateIdle);
             }
 
             if (rootIdleTexture == null)
@@ -184,6 +191,9 @@ namespace GinPadHack
             PartButton = new GUIStyle(Button);
             PartButton.fixedHeight = 0f;
             PartButton.fontSize = Mathf.RoundToInt(12f * scale);
+            // In the Body tab's Rotate mode an IK target that turns is amber: a drag turns it.
+            RotatePartButton = new GUIStyle(PartButton);
+            RotatePartButton.normal.background = RotatePartButton.focused.background = rotateTexture;
             BoneButton = new GUIStyle(PartButton);
             BoneButton.normal.background = BoneButton.focused.background = boneTexture;
             SmallBoneButton = new GUIStyle(BoneButton);
@@ -325,13 +335,19 @@ namespace GinPadHack
             return Mathf.Abs(point.x - place.center.x) <= halfWidth;
         }
 
-        internal static void DrawTrapezoidButton(Rect place, string label, bool hover, bool held, bool on, bool usable)
+        // "rotate": the Body tab is in Rotate mode, and the trapezoid is tinted amber like the IK targets.
+        internal static void DrawTrapezoidButton(Rect place, string label, bool hover, bool held, bool on, bool usable, bool rotate)
         {
             Texture2D texture = held ? rootHeldTexture : on ? rootOnTexture : hover ? rootHoverTexture : rootIdleTexture;
             Color previous = GUI.color;
+            if (rotate)
+            {
+                GUI.color = RotateRootTint;
+            }
+
             if (!usable)
             {
-                GUI.color = new Color(1f, 1f, 1f, 0.35f);
+                GUI.color = new Color(GUI.color.r, GUI.color.g, GUI.color.b, 0.35f);
             }
 
             GUI.DrawTexture(place, texture);

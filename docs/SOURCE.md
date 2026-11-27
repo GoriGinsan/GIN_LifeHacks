@@ -32,6 +32,7 @@ The Timeline helper has two editions. `build.ps1` builds both by default: the pr
 | `SetupObjects.cs` | Char Setup: the items and folders around the character (Sideloader lookup, sizes, colours, Material Editor) and the NodesConstraints links |
 | `SetupThemes.cs` | Char Setup: one row colour theme per character |
 | `AutoKey.cs` | Auto Key: how a manual edit is told apart from playback, animation and blinking |
+| `AutoKeyRows.cs` | Auto Key's `Add missing rows`: watching guide objects, KKPE overrides, Material Editor edits and every other row type of the selected objects, and adding the rows an edit needs; its check box in the menu |
 | `AutoKeyButton.cs` | The Auto Key record button, its curve menu and the generated icons; the curve of keys Auto Key adds |
 | `FaceRows.cs` | Services for GIN Pad life hack: whole-face key, keys for rows of named bones / guide objects / renderers, and which Blend Shapes the keys use |
 | `KeyDelay.cs` | Delay Key for GIN Pad life hack: keys of the body parts the Pad edits written a part's delay after the playhead (Auto Key, Key now) |

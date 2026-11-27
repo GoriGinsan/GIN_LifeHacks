@@ -13,7 +13,8 @@ namespace GinTimelineHack
     //
     // While it is on and playback is stopped, moving something that already has a Timeline
     // row writes that row's key at the playhead: an existing key there is updated, otherwise
-    // a key is added. Rows are never created; the S key keeps working as before.
+    // a key is added. Rows are created only with "Add missing rows" (AutoKeyRows.cs), which also
+    // watches every row type instead of the AutoKey / Rows list. The S key keeps working as before.
     // GIN Pad's Delay Key writes the rows of the body parts it edits a little later (KeyDelay.cs).
     // The toolbar control and the curve of added keys are in AutoKeyButton.cs.
     //
@@ -26,6 +27,8 @@ namespace GinTimelineHack
     //      body animation and blinking never look like an edit.
     //   4. The key is written one frame after the change: KKPE applies an edit to the bone or
     //      mesh in LateUpdate, and the native "current value" is only correct after that.
+    //   5. Everything is compared at most 20 times a second during input and 10 times without;
+    //      between those only the rows waiting for their key are compared, every frame.
     public sealed partial class Plugin
     {
         const float AutoKeyIdleInterval = 0.1f;   // seconds between checks without user input
@@ -64,6 +67,7 @@ namespace GinTimelineHack
             }
 
             ReadAutoKeyRows();
+            InstallMaterialEditorHook();
         }
 
         void ResetAutoKey()
@@ -72,8 +76,11 @@ namespace GinTimelineHack
             autoKeyBaselineStale = true;
             autoKeyBaseline.Clear();
             autoKeyChangedFrame.Clear();
+            neverAddedRows.Clear();
             autoKeyButton = autoKeyStripe = autoKeyDot = null;
             autoKeyArrow = autoKeyMenu = null;
+            addRowsBox = addRowsCheck = null;
+            ResetAutoRows();
             curveRows.Clear();
             curveButtons.Clear();
         }
@@ -107,7 +114,10 @@ namespace GinTimelineHack
             autoKeyBaselineStale = true;
             autoKeyChangedFrame.Clear();
             ShowAutoKeyState();
-            Note(on ? "AUTO KEY ON - moving a registered row writes its key at the playhead" : "Auto Key off - S applies current values to selected keys");
+            ResetAutoRows();
+            Note(!on ? "Auto Key off - S applies current values to selected keys"
+                : AutoKeyAddRows ? "AUTO KEY ON - an edit writes its key at the playhead, adding the row when there is none"
+                : "AUTO KEY ON - moving a registered row writes its key at the playhead");
         }
 
         void ShowAutoKeyState()
@@ -132,6 +142,11 @@ namespace GinTimelineHack
                 autoKeyLastInput = Time.unscaledTime;
             }
 
+            if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
+            {
+                autoRowsRebuildDue = true;   // a press may select what is edited next
+            }
+
             bool valuesSettled = !Native.isPlaying && Time.frameCount > nativeWroteValuesFrame + 1 && Native.playbackTime == autoKeyTime;
             if (!valuesSettled)
             {
@@ -142,28 +157,67 @@ namespace GinTimelineHack
             }
 
             bool userActive = Time.unscaledTime - autoKeyLastInput <= AutoKeyInputGrace;
-            if (!autoKeyBaselineStale && !userActive && autoKeyChangedFrame.Count == 0 && Time.unscaledTime < autoKeyNextCheck)
+            if (autoKeyBaselineStale || Time.unscaledTime >= autoKeyNextCheck)
+            {
+                autoKeyNextCheck = Time.unscaledTime + (userActive ? AutoKeyActiveInterval : AutoKeyIdleInterval);
+                if (autoKeyBaselineStale)
+                {
+                    // Timeline wrote values (playback, seeking): all of them are the new starting point.
+                    autoKeyBaselineStale = false;
+                    autoKeyBaseline.Clear();
+                    ResetAutoRows();
+                }
+
+                CompareWithBaseline(userActive);
+                PollMissingRows(userActive);
+            }
+            else if (autoKeyChangedFrame.Count > 0)
+            {
+                ComparePending(userActive);
+            }
+            else
             {
                 return;
             }
 
-            autoKeyNextCheck = Time.unscaledTime + AutoKeyIdleInterval;
-            if (autoKeyBaselineStale)
-            {
-                autoKeyBaselineStale = false;
-                autoKeyBaseline.Clear();
-            }
-
-            CompareWithBaseline(userActive);
             WriteDueKeys();
+        }
+
+        // Between full checks: only the rows that wait for their key, so a drag that pauses is
+        // keyed on the next frame without comparing every row every frame.
+        void ComparePending(bool userActive)
+        {
+            autoKeyDue.Clear();
+            autoKeyDue.AddRange(autoKeyChangedFrame.Keys);
+            foreach (Interpolable row in autoKeyDue)
+            {
+                object now = EditSignature(row);
+                object before;
+                if (autoKeyBaseline.TryGetValue(row, out before) && !SameValue(before, now))
+                {
+                    autoKeyBaseline[row] = now;
+                    if (userActive && now != NotWatched && now != NotOverridden)
+                    {
+                        autoKeyChangedFrame[row] = Time.frameCount;
+                    }
+                }
+            }
         }
 
         // Remember the frame in which each watched row last changed under the user's hands.
         void CompareWithBaseline(bool userActive)
         {
+            bool everyRow = AutoKeyAddRows;
             foreach (Interpolable row in Native.GetAllInterpolables(true))
             {
-                if (row.oci == null || !autoKeyRows.Contains(row.id))
+                if (row.oci == null)
+                {
+                    continue;
+                }
+
+                // With "Add missing rows" every row type is watched, except those that change by themselves.
+                bool listed = autoKeyRows.Contains(row.id);
+                if (!listed && (!everyRow || IsDrifting(row.owner, row.id) || IsNeverAdded(row)))
                 {
                     continue;
                 }
@@ -172,8 +226,25 @@ namespace GinTimelineHack
                 object before;
                 bool known = autoKeyBaseline.TryGetValue(row, out before);
                 autoKeyBaseline[row] = now;
-                if (!known || SameValue(before, now))
+                if (!known)
                 {
+                    // A value that is a new object on every read can never look unchanged.
+                    if (!listed && (now == NotWatched || !SameValue(now, EditSignature(row))))
+                    {
+                        MarkDrifting(row.owner, row.id);
+                    }
+
+                    continue;
+                }
+
+                if (SameValue(before, now))
+                {
+                    continue;
+                }
+
+                if (!listed && !userActive)
+                {
+                    MarkDrifting(row.owner, row.id);   // changed with nobody touching anything
                     continue;
                 }
 
@@ -226,7 +297,9 @@ namespace GinTimelineHack
             if (written > 0)
             {
                 nextRefresh = 0;
-                Note("Auto Key: " + written + " row(s) at " + time.ToString("0.###") + " s" + DelaySpread(smallestDelay, largestDelay));
+                string added = autoRowsAdded > 0 ? " (" + autoRowsAdded + " new)" : "";
+                autoRowsAdded = 0;
+                Note("Auto Key: " + written + " row(s)" + added + " at " + time.ToString("0.###") + " s" + DelaySpread(smallestDelay, largestDelay));
             }
         }
 
@@ -236,6 +309,14 @@ namespace GinTimelineHack
             if (key != null)
             {
                 key.value = row.GetValue();   // an existing key keeps its curve
+                return;
+            }
+
+            if (row.keyframes.Count == 0)
+            {
+                // A row that Auto Key has just added: its first key, as the scene loader makes one.
+                AnimationCurve first = AutoKeyCurve();
+                row.keyframes.Add(time, new Timeline.Keyframe(row.GetValue(), row, first == null ? AnimationCurve.Linear(0f, 0f, 1f, 1f) : new AnimationCurve(first.keys)));
                 return;
             }
 
@@ -335,6 +416,30 @@ namespace GinTimelineHack
             return signature;
         }
 
+        // Camera and animation rows: never keyed by "Add missing rows" (AutoKeyRows.cs).
+        readonly Dictionary<Interpolable, bool> neverAddedRows = new Dictionary<Interpolable, bool>();
+
+        bool IsNeverAdded(Interpolable row)
+        {
+            bool never;
+            if (!neverAddedRows.TryGetValue(row, out never))
+            {
+                string name = null;
+                try
+                {
+                    name = row.name;
+                }
+                catch
+                {
+                }
+
+                never = NeverAdded(row.owner, row.id, name);
+                neverAddedRows[row] = never;
+            }
+
+            return never;
+        }
+
         static bool SameValue(object a, object b)
         {
             if (ReferenceEquals(a, b))
@@ -361,6 +466,26 @@ namespace GinTimelineHack
             if (a is float && b is float)
             {
                 return Mathf.Approximately((float)a, (float)b);
+            }
+
+            // Arrays (all weights of a mesh, ...) are new on every read: compare what they hold.
+            Array first = a as Array, second = b as Array;
+            if (first != null && second != null)
+            {
+                if (first.Length != second.Length)
+                {
+                    return false;
+                }
+
+                for (int i = 0; i < first.Length; i++)
+                {
+                    if (!SameValue(first.GetValue(i), second.GetValue(i)))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
             }
 
             return a.Equals(b);

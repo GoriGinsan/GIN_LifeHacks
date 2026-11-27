@@ -117,6 +117,7 @@ namespace GinTimelineHack
                 new ConfigDescription(
                     "Curve of the keys Auto Key adds: one of Timeline's keyframe presets, or Previous (copy the previous key's curve, as Timeline does). Also in the menu next to the Auto Key button.",
                     new AcceptableValueList<string>(CurveNames)));
+            BindAutoKeyRowsSetting();
             rightCandidates = Config.Bind(
                 "Layout",
                 "CandidatesOnRight",
